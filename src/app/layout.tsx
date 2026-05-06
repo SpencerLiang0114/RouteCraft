@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Fraunces, Nunito_Sans } from "next/font/google";
 import { AppHeader } from "@/components/AppHeader";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 const display = Fraunces({
