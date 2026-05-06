@@ -1,8 +1,11 @@
-import { decodePolyline } from "./polyline";
+import "server-only";
+
+import { decodePolyline } from "@/lib/polyline";
 import type { ExternalRouteMock, RouteAnalysisSignals } from "@/types/route";
 
 const STRAVA_API_BASE = "https://www.strava.com/api/v3";
 const SEGMENT_EXPLORE_CACHE_TTL_MS = 10 * 60 * 1000;
+const SEGMENT_EXPLORE_CACHE_MAX_ENTRIES = 120;
 
 interface TokenState {
   accessToken?: string;
@@ -14,6 +17,7 @@ let tokenState: TokenState = {
   accessToken: process.env.STRAVA_ACCESS_TOKEN,
   refreshToken: process.env.STRAVA_REFRESH_TOKEN,
 };
+let refreshAccessTokenRequest: Promise<void> | null = null;
 
 const segmentExploreCache = new Map<string, { expiresAt: number; response: StravaExplorerResponse }>();
 
@@ -90,9 +94,9 @@ async function fetchExplorerSegments(
     activity_type: activity,
   });
   const url = `${STRAVA_API_BASE}/segments/explore?${params.toString()}`;
-  const cached = segmentExploreCache.get(url);
+  const cached = getCachedExplorerResponse(url);
 
-  if (cached && cached.expiresAt > Date.now()) {
+  if (cached) {
     return cached.response;
   }
 
@@ -108,7 +112,7 @@ async function fetchExplorerSegments(
   }
 
   const data = (await response.json()) as StravaExplorerResponse;
-  segmentExploreCache.set(url, {
+  setCachedExplorerResponse(url, {
     expiresAt: Date.now() + SEGMENT_EXPLORE_CACHE_TTL_MS,
     response: data,
   });
@@ -130,6 +134,14 @@ async function stravaFetch(url: string) {
 }
 
 async function refreshAccessToken() {
+  refreshAccessTokenRequest ??= refreshAccessTokenOnce().finally(() => {
+    refreshAccessTokenRequest = null;
+  });
+
+  return refreshAccessTokenRequest;
+}
+
+async function refreshAccessTokenOnce() {
   if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET || !tokenState.refreshToken) {
     throw new Error("Missing Strava refresh credentials.");
   }
@@ -163,6 +175,44 @@ async function refreshAccessToken() {
     refreshToken: token.refresh_token,
     expiresAt: token.expires_at,
   };
+}
+
+function getCachedExplorerResponse(url: string) {
+  const cached = segmentExploreCache.get(url);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    segmentExploreCache.delete(url);
+    return null;
+  }
+
+  return cached;
+}
+
+function setCachedExplorerResponse(
+  url: string,
+  cached: { expiresAt: number; response: StravaExplorerResponse },
+) {
+  for (const [key, value] of segmentExploreCache) {
+    if (value.expiresAt <= Date.now()) {
+      segmentExploreCache.delete(key);
+    }
+  }
+
+  while (segmentExploreCache.size >= SEGMENT_EXPLORE_CACHE_MAX_ENTRIES) {
+    const oldestKey = segmentExploreCache.keys().next().value;
+
+    if (!oldestKey) {
+      break;
+    }
+
+    segmentExploreCache.delete(oldestKey);
+  }
+
+  segmentExploreCache.set(url, cached);
 }
 
 function normalizeExplorerSegments(

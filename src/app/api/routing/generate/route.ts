@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateRoutes } from "@/lib/routeGenerator";
+import { generateRoutes } from "@/backend/routing/routeGenerator";
 import type { UserPreferences } from "@/types/route";
 
 export const dynamic = "force-dynamic";

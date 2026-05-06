@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { exploreStravaSegments, type StravaExploreActivity } from "@/backend/strava/stravaApi";
 import { haversineDistanceKm } from "@/lib/geoUtils";
-import { exploreStravaSegments, type StravaExploreActivity } from "@/lib/stravaApi";
 import type { ExternalRouteMock, LatLng } from "@/types/route";
 
 export const dynamic = "force-dynamic";

@@ -10,7 +10,7 @@ import { RouteGoalSelector } from "./RouteGoalSelector";
 import { RouteStyleSelector } from "./RouteStyleSelector";
 import { RouteSummary } from "./RouteSummary";
 import { StartPointPicker } from "./StartPointPicker";
-import { generateRouteCandidates } from "@/lib/routeGenerator";
+import { generateRoutes as generateRoutesRequest } from "@/frontend/api/routing";
 import { useRouteStore } from "@/store/routeStore";
 import type { UserPreferences } from "@/types/route";
 
@@ -53,28 +53,13 @@ export function WizardClient() {
     setGenerationMessage(null);
 
     try {
-      const response = await fetch("/api/routing/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(preferences),
-      });
-
-      if (!response.ok) {
-        throw new Error("Real map data was unavailable.");
-      }
-
-      const data = (await response.json()) as { routes?: ReturnType<typeof generateRouteCandidates> };
-      const candidates = data.routes?.length ? data.routes : generateRouteCandidates(preferences);
+      const { routes: candidates, message } = await generateRoutesRequest(preferences);
 
       setResults(candidates, candidates[0]?.id);
+      setGenerationMessage(message ?? null);
       router.push("/results");
-    } catch {
-      const candidates = generateRouteCandidates(preferences);
-      setResults(candidates, candidates[0]?.id);
-      setGenerationMessage("Using local fallback data because live map data could not be loaded.");
-      router.push("/results");
+    } catch (error) {
+      setGenerationMessage(error instanceof Error ? error.message : "Could not generate routes.");
     } finally {
       setIsGenerating(false);
     }

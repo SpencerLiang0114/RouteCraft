@@ -1,18 +1,20 @@
+import "server-only";
+
 import type { LatLng, RouteCandidate, UserPreferences } from "@/types/route";
 import {
   applyGeneratedRouteLabels,
   filterByDistance,
   rankRoutes,
-} from "./routing/candidateGenerator";
-import { filterDiverseRoutes } from "./routing/routeDiversity";
-import type { GeneratedRouteCandidate } from "./routing/routeAnalyzer";
-import { generateLoopRoutes } from "./routing/loopGenerator";
-import { generateOutAndBackRoutes } from "./routing/outAndBackGenerator";
-import { generatePointToPointRoutes } from "./routing/pointToPointGenerator";
-import { loadMockGraphNear } from "./routing/mockGraph";
-import { loadOsmGraphNear } from "./routing/osmGraph";
-import type { RouteGraph } from "./routing/graph";
-import { resolveTargetDistanceKm } from "./routing/geoUtils";
+} from "@/lib/routing/candidateGenerator";
+import { filterDiverseRoutes } from "@/lib/routing/routeDiversity";
+import type { GeneratedRouteCandidate } from "@/lib/routing/routeAnalyzer";
+import { generateLoopRoutes } from "@/lib/routing/loopGenerator";
+import { generateOutAndBackRoutes } from "@/lib/routing/outAndBackGenerator";
+import { generatePointToPointRoutes } from "@/lib/routing/pointToPointGenerator";
+import { loadMockGraphNear } from "@/lib/routing/mockGraph";
+import { loadOsmGraphNear } from "@/lib/routing/osmGraph";
+import type { RouteGraph } from "@/lib/routing/graph";
+import { resolveTargetDistanceKm } from "@/lib/routing/geoUtils";
 
 const fallbackStart: LatLng = { lat: 40.0149, lng: -105.2705 };
 
@@ -65,7 +67,7 @@ function stripInternalFields(route: GeneratedRouteCandidate): RouteCandidate {
 }
 
 export function generateRouteCandidates(preferences: UserPreferences): RouteCandidate[] {
-  // Synchronous fallback for client-side recovery when live OSM/elevation APIs are unavailable.
+  // Synchronous backend fallback when live OSM/elevation APIs are unavailable.
   // TODO: Integrate tree canopy, building shadow, weather, and user history data.
   // TODO: Use live rerouting and mobile navigation hooks once the app has navigation state.
   const graph = loadMockGraphNear(preferences.startPoint ?? fallbackStart, preferences);

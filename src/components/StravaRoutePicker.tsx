@@ -20,6 +20,7 @@ import {
 import type * as Leaflet from "leaflet";
 import { mockStravaRoutes, normalizeExternalRoute } from "@/lib/mockRoutes";
 import { formatActivity } from "@/lib/geoUtils";
+import { loadStravaSegments } from "@/frontend/api/strava";
 import { useRouteStore } from "@/store/routeStore";
 import type { ExternalRouteMock, LatLng } from "@/types/route";
 
@@ -56,6 +57,7 @@ export function StravaRoutePicker() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [mapReady, setMapReady] = useState(false);
+  const { lat: userLat, lng: userLng } = userLocation;
 
   const mockNearbyRoutes = useMemo(
     () => translateRoutesToLocation(mockStravaRoutes, userLocation),
@@ -149,23 +151,15 @@ export function StravaRoutePicker() {
 
     async function loadSegments() {
       const activity = filter === "cycling" ? "riding" : filter;
-      const params = new URLSearchParams({
-        lat: String(userLocation.lat),
-        lng: String(userLocation.lng),
-        activity,
-        radiusKm: String(startingRadiusKm),
-        limit: String(segmentLimit),
-      });
 
       try {
-        const response = await fetch(`/api/strava/segments?${params.toString()}`, {
+        const data = await loadStravaSegments({
+          location: { lat: userLat, lng: userLng },
+          activity,
+          radiusKm: startingRadiusKm,
+          limit: segmentLimit,
           signal: controller.signal,
         });
-        const data = (await response.json()) as {
-          source: "strava-api" | "mock";
-          segments: ExternalRouteMock[];
-          message?: string;
-        };
 
         if (controller.signal.aborted) {
           return;
@@ -198,7 +192,7 @@ export function StravaRoutePicker() {
     void loadSegments();
 
     return () => controller.abort();
-  }, [filter, segmentLimit, startingRadiusKm, userLocation.lat, userLocation.lng]);
+  }, [filter, segmentLimit, startingRadiusKm, userLat, userLng]);
 
   useEffect(() => {
     const leaflet = leafletRef.current;
