@@ -10,10 +10,11 @@ export default function StravaPage() {
         Route source
       </Link>
       <div className="mb-8 mt-6 max-w-3xl">
-        <p className="font-semibold text-orange-600">Mock Strava picker</p>
-        <h1 className="mt-2 text-4xl font-semibold text-stone-950">Choose one of your Strava routes</h1>
+        <p className="font-semibold text-orange-600">Strava route map</p>
+        <h1 className="mt-2 text-4xl font-semibold text-stone-950">Explore existing routes near you</h1>
         <p className="mt-4 text-lg leading-8 text-stone-600">
-          MVP data is mocked. The adapter boundary is ready for real Strava OAuth and route import later.
+          MVP data is mocked and centered on your browser location when available. Real saved routes and
+          nearby Strava segments can be wired in through Strava OAuth/API later.
         </p>
       </div>
       <StravaRoutePicker />
