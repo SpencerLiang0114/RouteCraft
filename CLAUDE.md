@@ -36,7 +36,7 @@ Never import `src/backend/` from components or `src/frontend/`. Never import `sr
 
 `src/store/routeStore.ts` — a single Zustand store persisted to `localStorage`. Holds `results: RouteCandidate[]`, `activeRouteId`, and `savedRoutes`. The store is SSR-safe via a noop storage fallback for server renders.
 
-`src/types/route.ts` is the canonical type file. `src/types/preferences.ts` re-exports a subset for convenience.
+`src/types/route.ts` is the canonical type file. Import from it directly — do not add re-export shim files under `src/types/`.
 
 ### Route generation pipeline
 
@@ -48,6 +48,23 @@ Never import `src/backend/` from components or `src/frontend/`. Never import `sr
 4. **Candidate selection** — `candidateGenerator.ts` ranks candidates; `routeDiversity.ts` filters for geometric diversity; top 3 routes are returned.
 
 Each `RouteEdge` carries per-segment scores (parkScore, shadeScore, safetyScore, sceneryScore, bikeScore, walkScore, noveltyScore) derived from OSM tags and proximity to green features. These feed the scoring and the A\* cost function.
+
+### Key `src/lib/` files
+
+| File | Role |
+|---|---|
+| `routeAnalyzer.ts` | Normalizes external/uploaded routes (with `RouteAnalysisSignals`) into `RouteCandidate` |
+| `routeNormalizer.ts` | `normalizeExternalRoute` adapter — converts `ExternalRouteMock` → `RouteCandidate` |
+| `routeScoring.ts` | Simple activity-weighted total score for external routes |
+| `mockRoutes.ts` | Mock `ExternalRouteMock` data for Strava and AllTrails. Coordinates are Ithaca, NY |
+| `geoUtils.ts` | Haversine distance, duration estimates, display formatters (`formatActivity`, `formatSource`) |
+| `xmlUtils.ts` | Shared `escapeXml` used by GPX and KML exporters |
+| `gpxParser.ts` / `kmlParser.ts` | Parse uploaded files into `RouteCandidate` via `analyzeRoute` |
+| `gpxExport.ts` / `kmlExport.ts` / `googleMapsExport.ts` | Export utilities |
+| `polyline.ts` | Google encoded polyline decoder — used by `stravaApi.ts` |
+| `routing/` | Contains the OSM graph loader, A\*, K-shortest paths, route type generators, edge cost, and scoring for generated routes |
+
+The `src/lib/routing/` sub-tree has its own `routeAnalyzer.ts`, `routeScoring.ts`, and `geoUtils.ts` that are specific to the generated-route pipeline. These are intentionally separate from the top-level `src/lib/` counterparts which handle external/uploaded routes.
 
 ### External APIs (no auth)
 

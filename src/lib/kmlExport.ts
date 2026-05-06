@@ -1,4 +1,5 @@
 import type { RouteCandidate } from "@/types/route";
+import { escapeXml } from "./xmlUtils";
 
 export function routeToKml(route: RouteCandidate) {
   const coordinates = route.geometry
@@ -20,11 +21,3 @@ export function routeToKml(route: RouteCandidate) {
 </kml>`;
 }
 
-function escapeXml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
-}

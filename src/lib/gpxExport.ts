@@ -1,4 +1,5 @@
 import type { RouteCandidate } from "@/types/route";
+import { escapeXml } from "./xmlUtils";
 
 export function routeToGpx(route: RouteCandidate) {
   const points = route.geometry
@@ -22,11 +23,3 @@ ${points}
 </gpx>`;
 }
 
-function escapeXml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
-}

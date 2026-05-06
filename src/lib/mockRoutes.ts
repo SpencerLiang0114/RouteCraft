@@ -1,7 +1,6 @@
-import type { ExternalRouteMock, RouteCandidate } from "@/types/route";
-import { analyzeRoute } from "./routeAnalyzer";
+import type { ExternalRouteMock } from "@/types/route";
 
-const boulder = {
+const ithaca = {
   campus: { lat: 42.447, lng: -76.485 },
   creek: { lat: 42.452, lng: -76.492 },
   ridge: { lat: 42.443, lng: -76.473 },
@@ -19,12 +18,12 @@ export const mockStravaRoutes: ExternalRouteMock[] = [
     estimatedDurationMin: 44,
     routeType: "loop",
     geometry: [
-      boulder.campus,
+      ithaca.campus,
       { lat: 42.452, lng: -76.482 },
       { lat: 42.454, lng: -76.469 },
       { lat: 42.448, lng: -76.462 },
       { lat: 42.441, lng: -76.474 },
-      boulder.campus,
+      ithaca.campus,
     ],
     signals: {
       parkAccess: 64,
@@ -47,12 +46,12 @@ export const mockStravaRoutes: ExternalRouteMock[] = [
     estimatedDurationMin: 97,
     routeType: "loop",
     geometry: [
-      boulder.creek,
+      ithaca.creek,
       { lat: 42.468, lng: -76.489 },
-      boulder.lake,
+      ithaca.lake,
       { lat: 42.461, lng: -76.443 },
       { lat: 42.431, lng: -76.451 },
-      boulder.creek,
+      ithaca.creek,
     ],
     signals: {
       parkAccess: 48,
@@ -77,9 +76,9 @@ export const mockStravaRoutes: ExternalRouteMock[] = [
     geometry: [
       { lat: 42.445, lng: -76.49 },
       { lat: 42.447, lng: -76.482 },
-      boulder.ridge,
+      ithaca.ridge,
       { lat: 42.439, lng: -76.462 },
-      boulder.ridge,
+      ithaca.ridge,
       { lat: 42.445, lng: -76.49 },
     ],
     signals: {
@@ -323,14 +322,3 @@ export const mockAllTrailsRoutes: ExternalRouteMock[] = [
   },
 ];
 
-export function normalizeExternalRoute(route: ExternalRouteMock): RouteCandidate {
-  // TODO: Replace this adapter with real Strava OAuth/API and AllTrails import adapters.
-  return analyzeRoute({
-    ...route,
-    targetDistanceKm: route.distanceKm,
-    explanation:
-      route.source === "strava"
-        ? "Imported Strava route normalized for RouteCraft scoring and export."
-        : "AllTrails route analyzed for shade, parks, elevation, and safety tradeoffs.",
-  });
-}

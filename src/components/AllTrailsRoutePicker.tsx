@@ -3,7 +3,8 @@
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Footprints, Mountain, Signal } from "lucide-react";
-import { mockAllTrailsRoutes, normalizeExternalRoute } from "@/lib/mockRoutes";
+import { mockAllTrailsRoutes } from "@/lib/mockRoutes";
+import { normalizeExternalRoute } from "@/lib/routeNormalizer";
 import { formatActivity } from "@/lib/geoUtils";
 import { useRouteStore } from "@/store/routeStore";
 

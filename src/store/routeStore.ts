@@ -3,7 +3,13 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import type { RouteCandidate, SavedRoute } from "@/types/route";
-import { routecraftStorageKey, toSavedRoute } from "@/lib/storage";
+
+const routecraftStorageKey = "routecraft-flow";
+
+function toSavedRoute(route: RouteCandidate): SavedRoute {
+  // TODO: Promote local saved routes into user route history for personalized recommendations.
+  return { ...route, savedAt: new Date().toISOString() };
+}
 
 interface RouteFlowState {
   results: RouteCandidate[];

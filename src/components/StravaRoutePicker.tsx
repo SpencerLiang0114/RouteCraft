@@ -18,7 +18,8 @@ import {
   ZoomOut,
 } from "lucide-react";
 import type * as Leaflet from "leaflet";
-import { mockStravaRoutes, normalizeExternalRoute } from "@/lib/mockRoutes";
+import { mockStravaRoutes } from "@/lib/mockRoutes";
+import { normalizeExternalRoute } from "@/lib/routeNormalizer";
 import { formatActivity } from "@/lib/geoUtils";
 import { loadStravaSegments } from "@/frontend/api/strava";
 import { useRouteStore } from "@/store/routeStore";

@@ -9,6 +9,8 @@ const activityIcons: Record<ActivityType, typeof Footprints> = {
 };
 
 const preferenceLabel = (value: number) => (value === 3 ? "high" : value === 2 ? "medium" : "low");
+const shadeNote = (value: number) =>
+  value === 3 ? "· prioritize shade" : value === 2 ? "· moderate shade" : "";
 
 export function RouteSummary({ preferences }: { preferences: UserPreferences }) {
   const Icon = activityIcons[preferences.activity];
@@ -30,7 +32,8 @@ export function RouteSummary({ preferences }: { preferences: UserPreferences }) 
       <p className="mt-5 text-2xl leading-9 text-emerald-50">
         {preferences.activity} · {target} · {formatRouteType(preferences.routeType)} ·{" "}
         {preferenceLabel(preferences.parkPreference)} park preference ·{" "}
-        {preferenceLabel(preferences.elevationPreference)} elevation · avoid strong sun ·{" "}
+        {preferenceLabel(preferences.elevationPreference)} elevation{" "}
+        {shadeNote(preferences.shadePreference)} ·{" "}
         {preferenceLabel(preferences.explorationPreference)} exploration
       </p>
       <p className="mt-4 text-sm font-semibold text-emerald-100">Start: {startLabel}</p>
