@@ -1,0 +1,195 @@
+import type { ExternalRouteMock, RouteCandidate } from "@/types/route";
+import { analyzeRoute } from "./routeAnalyzer";
+
+const boulder = {
+  campus: { lat: 40.008, lng: -105.273 },
+  creek: { lat: 40.014, lng: -105.287 },
+  ridge: { lat: 39.997, lng: -105.292 },
+  lake: { lat: 40.028, lng: -105.232 },
+};
+
+export const mockStravaRoutes: ExternalRouteMock[] = [
+  {
+    id: "strava-campus-loop",
+    source: "strava",
+    name: "Morning Campus Loop",
+    activity: "running",
+    distanceKm: 7.8,
+    elevationGainM: 86,
+    estimatedDurationMin: 44,
+    routeType: "loop",
+    geometry: [
+      boulder.campus,
+      { lat: 40.013, lng: -105.279 },
+      { lat: 40.019, lng: -105.271 },
+      { lat: 40.015, lng: -105.26 },
+      { lat: 40.006, lng: -105.262 },
+      boulder.campus,
+    ],
+    signals: {
+      parkAccess: 64,
+      shadeCover: 52,
+      roadExposure: 28,
+      safety: 78,
+      novelty: 38,
+      scenery: 61,
+      surfaceQuality: 86,
+      intersectionComplexity: 36,
+    },
+  },
+  {
+    id: "strava-lake-ride",
+    source: "strava",
+    name: "Lake Ride",
+    activity: "cycling",
+    distanceKm: 31.2,
+    elevationGainM: 240,
+    estimatedDurationMin: 97,
+    routeType: "loop",
+    geometry: [
+      boulder.creek,
+      { lat: 40.023, lng: -105.266 },
+      boulder.lake,
+      { lat: 40.041, lng: -105.247 },
+      { lat: 40.037, lng: -105.286 },
+      boulder.creek,
+    ],
+    signals: {
+      parkAccess: 48,
+      shadeCover: 34,
+      roadExposure: 58,
+      safety: 69,
+      novelty: 44,
+      scenery: 72,
+      surfaceQuality: 81,
+      intersectionComplexity: 41,
+    },
+  },
+  {
+    id: "strava-hill-repeat",
+    source: "strava",
+    name: "Hill Repeat Route",
+    activity: "running",
+    distanceKm: 5.4,
+    elevationGainM: 180,
+    estimatedDurationMin: 35,
+    routeType: "out_and_back",
+    geometry: [
+      { lat: 40.0005, lng: -105.283 },
+      { lat: 39.997, lng: -105.288 },
+      boulder.ridge,
+      { lat: 39.993, lng: -105.298 },
+      boulder.ridge,
+      { lat: 40.0005, lng: -105.283 },
+    ],
+    signals: {
+      parkAccess: 58,
+      shadeCover: 42,
+      roadExposure: 21,
+      safety: 72,
+      novelty: 53,
+      scenery: 78,
+      surfaceQuality: 74,
+      intersectionComplexity: 18,
+    },
+  },
+];
+
+export const mockAllTrailsRoutes: ExternalRouteMock[] = [
+  {
+    id: "alltrails-forest-ridge",
+    source: "alltrails",
+    name: "Forest Ridge Trail",
+    activity: "hiking",
+    distanceKm: 9.6,
+    elevationGainM: 320,
+    estimatedDurationMin: 126,
+    difficulty: "Moderate",
+    routeType: "loop",
+    geometry: [
+      { lat: 39.999, lng: -105.296 },
+      { lat: 39.994, lng: -105.306 },
+      { lat: 39.988, lng: -105.301 },
+      { lat: 39.991, lng: -105.289 },
+      { lat: 39.999, lng: -105.296 },
+    ],
+    signals: {
+      parkAccess: 86,
+      shadeCover: 78,
+      roadExposure: 7,
+      safety: 74,
+      novelty: 62,
+      scenery: 88,
+      surfaceQuality: 66,
+      intersectionComplexity: 12,
+    },
+  },
+  {
+    id: "alltrails-waterfall-loop",
+    source: "alltrails",
+    name: "Waterfall Loop",
+    activity: "hiking",
+    distanceKm: 6.2,
+    elevationGainM: 210,
+    estimatedDurationMin: 82,
+    difficulty: "Moderate",
+    routeType: "loop",
+    geometry: [
+      { lat: 40.002, lng: -105.31 },
+      { lat: 40.007, lng: -105.318 },
+      { lat: 40.012, lng: -105.31 },
+      { lat: 40.008, lng: -105.299 },
+      { lat: 40.002, lng: -105.31 },
+    ],
+    signals: {
+      parkAccess: 91,
+      shadeCover: 72,
+      roadExposure: 5,
+      safety: 77,
+      novelty: 55,
+      scenery: 92,
+      surfaceQuality: 71,
+      intersectionComplexity: 10,
+    },
+  },
+  {
+    id: "alltrails-river-greenway",
+    source: "alltrails",
+    name: "River Greenway Ride",
+    activity: "cycling",
+    distanceKm: 18.4,
+    elevationGainM: 90,
+    estimatedDurationMin: 58,
+    difficulty: "Easy",
+    routeType: "point_to_point",
+    geometry: [
+      { lat: 40.016, lng: -105.292 },
+      { lat: 40.02, lng: -105.278 },
+      { lat: 40.024, lng: -105.261 },
+      { lat: 40.031, lng: -105.247 },
+      { lat: 40.036, lng: -105.236 },
+    ],
+    signals: {
+      parkAccess: 72,
+      shadeCover: 48,
+      roadExposure: 22,
+      safety: 82,
+      novelty: 48,
+      scenery: 69,
+      surfaceQuality: 88,
+      intersectionComplexity: 22,
+    },
+  },
+];
+
+export function normalizeExternalRoute(route: ExternalRouteMock): RouteCandidate {
+  // TODO: Replace this adapter with real Strava OAuth/API and AllTrails import adapters.
+  return analyzeRoute({
+    ...route,
+    targetDistanceKm: route.distanceKm,
+    explanation:
+      route.source === "strava"
+        ? "Imported Strava route normalized for RouteCraft scoring and export."
+        : "AllTrails route analyzed for shade, parks, elevation, and safety tradeoffs.",
+  });
+}
