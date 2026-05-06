@@ -118,6 +118,7 @@ function PresetRow({
   onCustom: (value: number) => void;
 }) {
   const isCustom = selectedValue !== undefined && !values.some((item) => item.value === selectedValue);
+  const defaultCustomValue = suffix === "km" ? 8 : 75;
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-4">
@@ -139,7 +140,7 @@ function PresetRow({
         ))}
         <button
           type="button"
-          onClick={() => onCustom(customValue)}
+          onClick={() => onCustom(isCustom ? customValue : defaultCustomValue)}
           className={`rounded-lg px-4 py-2 text-sm font-semibold ${
             isCustom ? "bg-emerald-950 text-white" : "bg-stone-100 text-stone-700 hover:bg-emerald-100"
           }`}

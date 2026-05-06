@@ -1,8 +1,16 @@
 "use client";
 
-import { MapPinned, Navigation } from "lucide-react";
-import type { LatLng, RouteCandidate } from "@/types/route";
-import { getRouteBounds } from "@/lib/geoUtils";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Layers, Navigation } from "lucide-react";
+import type {
+  LatLngBoundsExpression,
+  LatLngExpression,
+  LayerGroup,
+  Map as LeafletMap,
+} from "leaflet";
+import type { RouteCandidate } from "@/types/route";
+
+const defaultCenter: LatLngExpression = [40.0149, -105.2705];
 
 export function RouteMap({
   routes,
@@ -13,57 +21,127 @@ export function RouteMap({
   selectedRouteId?: string | null;
   onSelectRoute?: (routeId: string) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const routeLayerRef = useRef<LayerGroup | null>(null);
+  const markerLayerRef = useRef<LayerGroup | null>(null);
+  const [leaflet, setLeaflet] = useState<typeof import("leaflet") | null>(null);
   const selectedRoute = routes.find((route) => route.id === selectedRouteId) ?? routes[0];
-  const bounds = getRouteBounds(routes.map((route) => route.geometry));
+  const selectedBounds = useMemo(() => getRouteBounds(selectedRoute), [selectedRoute]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function mountMap() {
+      if (!containerRef.current || mapRef.current) {
+        return;
+      }
+
+      const L = await import("leaflet");
+
+      if (cancelled || !containerRef.current) {
+        return;
+      }
+
+      const map = L.map(containerRef.current, {
+        zoomControl: false,
+        scrollWheelZoom: true,
+      }).setView(defaultCenter, 13);
+
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
+      routeLayerRef.current = L.layerGroup().addTo(map);
+      markerLayerRef.current = L.layerGroup().addTo(map);
+      mapRef.current = map;
+      setLeaflet(L);
+    }
+
+    mountMap();
+
+    return () => {
+      cancelled = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
+      routeLayerRef.current = null;
+      markerLayerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const routeLayer = routeLayerRef.current;
+    const markerLayer = markerLayerRef.current;
+
+    if (!leaflet || !map || !routeLayer || !markerLayer) {
+      return;
+    }
+
+    routeLayer.clearLayers();
+    markerLayer.clearLayers();
+
+    for (const route of routes) {
+      const selected = route.id === selectedRoute?.id;
+      const coordinates = route.geometry.map((point) => [point.lat, point.lng] as LatLngExpression);
+
+      if (coordinates.length < 2) {
+        continue;
+      }
+
+      const casing = leaflet.polyline(coordinates, {
+        color: selected ? "#052e16" : "#44403c",
+        weight: selected ? 10 : 6,
+        opacity: selected ? 0.95 : 0.35,
+        lineCap: "round",
+        lineJoin: "round",
+      });
+      const routeLine = leaflet.polyline(coordinates, {
+        color: selected ? "#f2c14e" : "#78716c",
+        weight: selected ? 4 : 3,
+        opacity: selected ? 1 : 0.65,
+        lineCap: "round",
+        lineJoin: "round",
+      });
+
+      casing.on("click", () => onSelectRoute?.(route.id));
+      routeLine.on("click", () => onSelectRoute?.(route.id));
+      casing.addTo(routeLayer);
+      routeLine.addTo(routeLayer);
+    }
+
+    if (selectedRoute) {
+      addRouteMarkers(leaflet, markerLayer, selectedRoute);
+    }
+
+    if (selectedBounds) {
+      map.fitBounds(selectedBounds, { padding: [42, 42], animate: false });
+    }
+  }, [leaflet, onSelectRoute, routes, selectedBounds, selectedRoute]);
+
+  function recenter() {
+    if (selectedBounds) {
+      mapRef.current?.fitBounds(selectedBounds, { padding: [42, 42] });
+      return;
+    }
+
+    mapRef.current?.setView(defaultCenter, 13);
+  }
 
   return (
-    <section className="relative min-h-[520px] overflow-hidden rounded-lg border border-stone-200 bg-[#dfe8d4] shadow-sm">
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(39,80,56,0.08)_1px,transparent_1px),linear-gradient(0deg,rgba(39,80,56,0.08)_1px,transparent_1px)] bg-[size:48px_48px]" />
-      <div className="absolute left-6 top-6 z-10 flex items-center gap-2 rounded-lg bg-white/90 px-4 py-3 font-semibold text-stone-950 shadow-sm">
-        <MapPinned size={18} />
-        Placeholder route map
+    <section className="relative min-h-[520px] overflow-hidden rounded-lg border border-stone-200 bg-stone-200 shadow-sm">
+      <div ref={containerRef} className="absolute inset-0 z-0" aria-label="OpenStreetMap route map" />
+      <div className="pointer-events-none absolute left-4 top-4 z-[500] flex items-center gap-2 rounded-lg bg-white/95 px-4 py-3 text-sm font-semibold text-stone-950 shadow-sm backdrop-blur">
+        <Layers size={17} />
+        OpenStreetMap
       </div>
-      <div className="absolute bottom-6 left-6 z-10 rounded-lg bg-white/90 px-4 py-3 text-sm text-stone-700 shadow-sm">
-        MapLibre or Mapbox can replace this component when an API key is configured.
-      </div>
-      <svg viewBox="0 0 1000 640" className="absolute inset-0 size-full">
-        <MapLabels />
-        {routes.map((route) => {
-          const selected = route.id === selectedRoute?.id;
-          const path = pathFor(route.geometry, bounds);
-
-          return (
-            <g key={route.id}>
-              <path
-                d={path}
-                fill="none"
-                stroke={selected ? "#064e3b" : "#78716c"}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={selected ? 13 : 7}
-                opacity={selected ? 0.98 : 0.42}
-                className="cursor-pointer transition"
-                onClick={() => onSelectRoute?.(route.id)}
-              />
-              {selected && (
-                <path
-                  d={path}
-                  fill="none"
-                  stroke="#f2c14e"
-                  strokeDasharray="2 24"
-                  strokeLinecap="round"
-                  strokeWidth={5}
-                />
-              )}
-            </g>
-          );
-        })}
-        {selectedRoute && <RouteMarkers route={selectedRoute} bounds={bounds} />}
-      </svg>
-      <div className="absolute right-6 top-6 z-10 grid gap-2">
+      <div className="absolute right-4 top-4 z-[500] grid gap-2">
         <button
           type="button"
-          className="grid size-11 place-items-center rounded-lg bg-white text-stone-900 shadow-sm"
+          onClick={recenter}
+          className="grid size-11 place-items-center rounded-lg bg-white text-stone-900 shadow-sm hover:bg-emerald-50"
           title="Recenter"
         >
           <Navigation size={18} />
@@ -73,87 +151,60 @@ export function RouteMap({
   );
 }
 
-function MapLabels() {
-  return (
-    <g fill="#315841" opacity="0.42" fontSize="24" fontWeight="700">
-      <text x="116" y="126">north park</text>
-      <text x="638" y="172">bike lane</text>
-      <text x="162" y="522">trailhead</text>
-      <text x="624" y="512">greenway</text>
-    </g>
-  );
-}
-
-function RouteMarkers({
-  route,
-  bounds,
-}: {
-  route: RouteCandidate;
-  bounds: ReturnType<typeof getRouteBounds>;
-}) {
+function addRouteMarkers(
+  L: typeof import("leaflet"),
+  markerLayer: LayerGroup,
+  route: RouteCandidate,
+) {
   const start = route.geometry[0];
   const end = route.geometry.at(-1) ?? start;
-  const markers = [
-    { point: start, label: "Start", color: "#064e3b" },
-    { point: end, label: "End", color: "#b45309" },
-  ];
 
-  return (
-    <g>
-      {route.waypoints?.map((point, index) => {
-        const projected = project(point, bounds);
-        return (
-          <circle
-            key={`${point.lat}-${point.lng}-${index}`}
-            cx={projected.x}
-            cy={projected.y}
-            r="10"
-            fill="#ffffff"
-            stroke="#0e7490"
-            strokeWidth="5"
-          />
-        );
-      })}
-      {markers.map((marker) => {
-        const projected = project(marker.point, bounds);
-        return (
-          <g key={marker.label}>
-            <circle cx={projected.x} cy={projected.y} r="19" fill="#ffffff" />
-            <circle cx={projected.x} cy={projected.y} r="11" fill={marker.color} />
-            <text
-              x={projected.x + 22}
-              y={projected.y + 7}
-              fill="#1c1917"
-              fontSize="22"
-              fontWeight="700"
-            >
-              {marker.label}
-            </text>
-          </g>
-        );
-      })}
-    </g>
-  );
+  if (start) {
+    addMarker(L, markerLayer, [start.lat, start.lng], "#064e3b", "Start");
+  }
+
+  if (end) {
+    addMarker(L, markerLayer, [end.lat, end.lng], "#b45309", "End");
+  }
+
+  for (const waypoint of route.waypoints ?? []) {
+    L.circleMarker([waypoint.lat, waypoint.lng], {
+      radius: 6,
+      color: "#0e7490",
+      fillColor: "#ffffff",
+      fillOpacity: 1,
+      weight: 3,
+    }).addTo(markerLayer);
+  }
 }
 
-function pathFor(geometry: LatLng[], bounds: ReturnType<typeof getRouteBounds>) {
-  return geometry
-    .map((point, index) => {
-      const projected = project(point, bounds);
-      return `${index === 0 ? "M" : "L"} ${projected.x} ${projected.y}`;
+function addMarker(
+  L: typeof import("leaflet"),
+  markerLayer: LayerGroup,
+  point: LatLngExpression,
+  color: string,
+  label: string,
+) {
+  L.circleMarker(point, {
+    radius: 10,
+    color: "#ffffff",
+    fillColor: color,
+    fillOpacity: 1,
+    weight: 4,
+  })
+    .bindTooltip(label, {
+      permanent: true,
+      direction: "right",
+      offset: [12, 0],
+      className: "routecraft-map-tooltip",
     })
-    .join(" ");
+    .addTo(markerLayer);
 }
 
-function project(point: LatLng, bounds: ReturnType<typeof getRouteBounds>) {
-  const padding = 86;
-  const width = 1000 - padding * 2;
-  const height = 640 - padding * 2;
-  const lngRange = Math.max(bounds.maxLng - bounds.minLng, 0.001);
-  const latRange = Math.max(bounds.maxLat - bounds.minLat, 0.001);
+function getRouteBounds(route?: RouteCandidate): LatLngBoundsExpression | undefined {
+  if (!route || route.geometry.length === 0) {
+    return undefined;
+  }
 
-  return {
-    x: padding + ((point.lng - bounds.minLng) / lngRange) * width,
-    y: padding + (1 - (point.lat - bounds.minLat) / latRange) * height,
-  };
+  return route.geometry.map((point) => [point.lat, point.lng] as [number, number]);
 }

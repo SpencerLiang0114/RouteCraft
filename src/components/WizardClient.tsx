@@ -26,7 +26,6 @@ const initialPreferences: UserPreferences = {
   departureTime: "Afternoon",
   goalMode: "distance",
   routeStyle: "park_heavy",
-  startPoint: { lat: 40.0149, lng: -105.2705 },
 };
 
 const stepTitles = [
@@ -42,14 +41,43 @@ const stepTitles = [
 export function WizardClient() {
   const [step, setStep] = useState(0);
   const [preferences, setPreferences] = useState<UserPreferences>(initialPreferences);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationMessage, setGenerationMessage] = useState<string | null>(null);
   const setResults = useRouteStore((state) => state.setResults);
   const router = useRouter();
   const progress = useMemo(() => Math.round(((step + 1) / stepTitles.length) * 100), [step]);
+  const cannotContinue = step === 1 && !preferences.startPoint;
 
-  function generateRoutes() {
-    const candidates = generateRouteCandidates(preferences);
-    setResults(candidates, candidates[0]?.id);
-    router.push("/results");
+  async function generateRoutes() {
+    setIsGenerating(true);
+    setGenerationMessage(null);
+
+    try {
+      const response = await fetch("/api/routing/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(preferences),
+      });
+
+      if (!response.ok) {
+        throw new Error("Real map data was unavailable.");
+      }
+
+      const data = (await response.json()) as { routes?: ReturnType<typeof generateRouteCandidates> };
+      const candidates = data.routes?.length ? data.routes : generateRouteCandidates(preferences);
+
+      setResults(candidates, candidates[0]?.id);
+      router.push("/results");
+    } catch {
+      const candidates = generateRouteCandidates(preferences);
+      setResults(candidates, candidates[0]?.id);
+      setGenerationMessage("Using local fallback data because live map data could not be loaded.");
+      router.push("/results");
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   return (
@@ -108,7 +136,8 @@ export function WizardClient() {
           <button
             type="button"
             onClick={() => setStep((current) => Math.min(stepTitles.length - 1, current + 1))}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white hover:bg-emerald-950"
+            disabled={cannotContinue}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Continue
             <ArrowRight size={18} />
@@ -117,13 +146,19 @@ export function WizardClient() {
           <button
             type="button"
             onClick={generateRoutes}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 py-3 font-semibold text-white hover:bg-stone-950"
+            disabled={isGenerating}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 py-3 font-semibold text-white hover:bg-stone-950 disabled:cursor-wait disabled:opacity-70"
           >
             <Route size={18} />
-            Generate Routes
+            {isGenerating ? "Generating..." : "Generate Routes"}
           </button>
         )}
       </div>
+      {generationMessage && (
+        <p className="mt-4 text-sm font-semibold text-amber-800" role="status">
+          {generationMessage}
+        </p>
+      )}
     </div>
   );
 }

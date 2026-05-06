@@ -34,3 +34,17 @@ input {
   background: #f2c14e;
   color: #1c1917;
 }
+
+.routecraft-map-tooltip {
+  border: 0;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.95);
+  color: #1c1917;
+  box-shadow: 0 10px 24px rgb(28 25 23 / 0.14);
+  font-family: var(--font-body), "Trebuchet MS", sans-serif;
+  font-weight: 800;
+}
+
+.routecraft-map-tooltip::before {
+  border-right-color: rgb(255 255 255 / 0.95);
+}

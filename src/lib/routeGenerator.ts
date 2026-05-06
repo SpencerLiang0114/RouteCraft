@@ -1,158 +1,110 @@
-import type { RouteAnalysisSignals, RouteCandidate, UserPreferences } from "@/types/route";
-import { analyzeRoute } from "./routeAnalyzer";
-import { estimateDurationMin, round } from "./geoUtils";
+import type { LatLng, RouteCandidate, UserPreferences } from "@/types/route";
+import {
+  applyGeneratedRouteLabels,
+  filterByDistance,
+  rankRoutes,
+} from "./routing/candidateGenerator";
+import { filterDiverseRoutes } from "./routing/routeDiversity";
+import type { GeneratedRouteCandidate } from "./routing/routeAnalyzer";
+import { generateLoopRoutes } from "./routing/loopGenerator";
+import { generateOutAndBackRoutes } from "./routing/outAndBackGenerator";
+import { generatePointToPointRoutes } from "./routing/pointToPointGenerator";
+import { loadMockGraphNear } from "./routing/mockGraph";
+import { loadOsmGraphNear } from "./routing/osmGraph";
+import type { RouteGraph } from "./routing/graph";
+import { resolveTargetDistanceKm } from "./routing/geoUtils";
 
-const fallbackStart = { lat: 40.0149, lng: -105.2705 };
+const fallbackStart: LatLng = { lat: 40.0149, lng: -105.2705 };
 
-function kmOffset(distanceKm: number) {
-  return distanceKm / 111;
-}
-
-function buildLoopGeometry(preferences: UserPreferences, variant: number) {
-  const start = preferences.startPoint ?? fallbackStart;
-  const distanceKm =
-    preferences.targetDistanceKm ??
-    (preferences.targetDurationMin
-      ? preferences.targetDurationMin / (preferences.activity === "cycling" ? 3.1 : 7.2)
-      : 8);
-  const size = kmOffset(Math.sqrt(distanceKm) * (variant === 2 ? 1.45 : 1.15));
-  const wobble = size * (variant === 3 ? 0.45 : 0.25);
-
-  if (preferences.routeType === "point_to_point") {
-    return [
-      start,
-      { lat: start.lat + size * 0.5, lng: start.lng + size + wobble },
-      { lat: start.lat + size * 0.9, lng: start.lng + size * 1.8 },
-      preferences.endPoint ?? { lat: start.lat + size * 1.2, lng: start.lng + size * 2.25 },
-    ];
+function generateRouteCandidatesInternal(preferences: UserPreferences, graph: RouteGraph) {
+  if (preferences.routeType === "loop") {
+    return generateLoopRoutes(preferences, graph);
   }
 
-  return [
-    start,
-    { lat: start.lat + size, lng: start.lng + wobble },
-    { lat: start.lat + size * 0.85, lng: start.lng + size * 1.35 },
-    { lat: start.lat - size * 0.15, lng: start.lng + size * 1.1 },
-    { lat: start.lat - size * 0.45, lng: start.lng + size * 0.35 },
-    start,
-  ];
+  if (preferences.routeType === "out_and_back") {
+    return generateOutAndBackRoutes(preferences, graph);
+  }
+
+  if (preferences.routeType === "point_to_point") {
+    return generatePointToPointRoutes(preferences, graph);
+  }
+
+  return [];
 }
 
-function applyPreferenceSignals(
-  preferences: UserPreferences,
-  template: Partial<RouteAnalysisSignals>,
-): RouteAnalysisSignals {
-  const style = preferences.routeStyle;
+function byDistanceMiss(preferences: UserPreferences) {
+  const targetDistanceKm = resolveTargetDistanceKm(preferences);
 
+  return (a: RouteCandidate, b: RouteCandidate) => {
+    return (
+      Math.abs(a.distanceKm - targetDistanceKm) -
+      Math.abs(b.distanceKm - targetDistanceKm)
+    );
+  };
+}
+
+function stripInternalFields(route: GeneratedRouteCandidate): RouteCandidate {
   return {
-    parkAccess: Math.min(
-      96,
-      (template.parkAccess ?? 55) + preferences.parkPreference * 4 + (style === "park_heavy" ? 12 : 0),
-    ),
-    shadeCover: Math.min(
-      95,
-      (template.shadeCover ?? 48) + preferences.shadePreference * 4 + (style === "shaded" ? 16 : 0),
-    ),
-    roadExposure: Math.max(4, template.roadExposure ?? 24),
-    safety: Math.min(96, (template.safety ?? 72) + preferences.safetyPreference * 4),
-    novelty: Math.min(
-      96,
-      (template.novelty ?? 46) + preferences.explorationPreference * 4 + (style === "exploration" ? 15 : 0),
-    ),
-    scenery: Math.min(96, (template.scenery ?? 60) + (style === "scenic" ? 18 : 0)),
-    surfaceQuality: template.surfaceQuality ?? 75,
-    intersectionComplexity: template.intersectionComplexity ?? 28,
+    id: route.id,
+    source: route.source,
+    name: route.name,
+    activity: route.activity,
+    routeType: route.routeType,
+    geometry: route.geometry,
+    waypoints: route.waypoints,
+    distanceKm: route.distanceKm,
+    estimatedDurationMin: route.estimatedDurationMin,
+    elevationGainM: route.elevationGainM,
+    totalDescentM: route.totalDescentM,
+    averageSlopePct: route.averageSlopePct,
+    maxSlopePct: route.maxSlopePct,
+    difficulty: route.difficulty,
+    metrics: route.metrics,
+    explanation: route.explanation,
   };
 }
 
 export function generateRouteCandidates(preferences: UserPreferences): RouteCandidate[] {
-  // TODO: Replace mock geometry with a real routing API that respects legal access and user safety.
-  // TODO: Add OpenStreetMap/Overpass park and path analysis before production recommendations.
-  // TODO: Add weather-aware suggestions, user route history, and personalized recommendations.
-  // TODO: Use the same route model for mobile navigation, live rerouting, and deviation handling.
-  const targetDistance =
-    preferences.targetDistanceKm ??
-    round(
-      preferences.targetDurationMin
-        ? preferences.targetDurationMin / (preferences.activity === "cycling" ? 3.1 : 7.2)
-        : 8,
-      1,
-    );
+  // Synchronous fallback for client-side recovery when live OSM/elevation APIs are unavailable.
+  // TODO: Integrate tree canopy, building shadow, weather, and user history data.
+  // TODO: Use live rerouting and mobile navigation hooks once the app has navigation state.
+  const graph = loadMockGraphNear(preferences.startPoint ?? fallbackStart, preferences);
 
-  const templates = [
-    {
-      id: "recommended",
-      name: "Park Loop",
-      label: "Recommended route",
-      distanceDelta: 0.1,
-      elevationGainM: preferences.routeStyle === "climbing" ? 150 : 56,
-      signals: {
-        parkAccess: 66,
-        shadeCover: 54,
-        roadExposure: 18,
-        safety: 82,
-        novelty: 58,
-        scenery: 72,
-        surfaceQuality: 84,
-        intersectionComplexity: 22,
-      },
-      explanation: `Best for relaxed ${preferences.departureTime.toLowerCase()} ${preferences.activity}.`,
-    },
-    {
-      id: "lowest-elevation",
-      name: "Creekside Easy Line",
-      label: "Lowest-elevation route",
-      distanceDelta: -0.2,
-      elevationGainM: 28,
-      signals: {
-        parkAccess: 58,
-        shadeCover: 46,
-        roadExposure: 24,
-        safety: 86,
-        novelty: 42,
-        scenery: 63,
-        surfaceQuality: 88,
-        intersectionComplexity: 18,
-      },
-      explanation: "Flatter option with simpler turns and a steadier effort profile.",
-    },
-    {
-      id: "exploration",
-      name: "Hidden Greenway Mix",
-      label: "Exploration route",
-      distanceDelta: 0.3,
-      elevationGainM: preferences.routeStyle === "climbing" ? 220 : 92,
-      signals: {
-        parkAccess: 72,
-        shadeCover: 62,
-        roadExposure: 14,
-        safety: 76,
-        novelty: 82,
-        scenery: 78,
-        surfaceQuality: 73,
-        intersectionComplexity: 30,
-      },
-      explanation: "Uses alternative public paths for a fresher route without unsafe shortcuts.",
-    },
-  ];
+  return selectTopRoutes(preferences, generateRouteCandidatesInternal(preferences, graph));
+}
 
-  return templates.map((template, index) =>
-    analyzeRoute({
-      id: `generated-${template.id}`,
-      source: "generated",
-      name: `${template.label}: ${template.name}`,
-      activity: preferences.activity,
-      routeType: preferences.routeType,
-      geometry: buildLoopGeometry(preferences, index + 1),
-      distanceKm: round(Math.max(1, targetDistance + template.distanceDelta), 1),
-      targetDistanceKm: targetDistance,
-      estimatedDurationMin: estimateDurationMin(
-        preferences.activity,
-        Math.max(1, targetDistance + template.distanceDelta),
-      ),
-      elevationGainM: template.elevationGainM,
-      departureTime: preferences.departureTime,
-      signals: applyPreferenceSignals(preferences, template.signals),
-      explanation: template.explanation,
-    }),
-  );
+function selectTopRoutes(
+  preferences: UserPreferences,
+  candidates: GeneratedRouteCandidate[],
+) {
+  const targetDistanceKm = resolveTargetDistanceKm(preferences);
+  const distanceFiltered = filterByDistance(candidates, targetDistanceKm);
+  const routePool =
+    distanceFiltered.length >= 3
+      ? distanceFiltered
+      : [...distanceFiltered, ...candidates.sort(byDistanceMiss(preferences))]
+          .filter((route, index, routes) => routes.findIndex((item) => item.id === route.id) === index)
+          .slice(0, Math.max(3, candidates.length));
+  const ranked = rankRoutes(routePool);
+  const diverse = filterDiverseRoutes(ranked, 0.7);
+  const selected = diverse.length >= 3 ? diverse : filterDiverseRoutes(ranked, 0.9);
+
+  return applyGeneratedRouteLabels(selected).slice(0, 3).map(stripInternalFields);
+}
+
+export async function generateRoutes(preferences: UserPreferences): Promise<RouteCandidate[]> {
+  const startPoint = preferences.startPoint ?? fallbackStart;
+
+  try {
+    const graph = await loadOsmGraphNear(startPoint, preferences);
+    const routes = selectTopRoutes(preferences, generateRouteCandidatesInternal(preferences, graph));
+
+    if (routes.length >= 3) {
+      return routes;
+    }
+  } catch (error) {
+    console.warn("Falling back to mock routing graph.", error);
+  }
+
+  return generateRouteCandidates(preferences);
 }
