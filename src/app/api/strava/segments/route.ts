@@ -36,7 +36,8 @@ export async function GET(request: Request) {
 
   try {
     // Strava explore returns the top 10 segments per bounds request, without a per-page option.
-    // Query expanding bounds to collect more nearby candidates, then sort by distance to the map center.
+    // Query expanding bounds so segments whose starts are farther away can still be recommended
+    // when their decoded geometry passes through the requested radius.
     for (const radius of radii) {
       const result = await exploreStravaSegments({
         bounds: boundsAround(center, radius),
@@ -50,21 +51,23 @@ export async function GET(request: Request) {
         seen.set(segment.id, segment);
       }
 
-      if (source !== "strava-api" || seen.size >= segmentLimit) {
+      const matchingSegments = segmentsWithinRadius(center, Array.from(seen.values()), radiusKm, segmentLimit);
+
+      if (source !== "strava-api" || matchingSegments.length >= segmentLimit) {
         break;
       }
     }
 
     return NextResponse.json({
       source,
-      segments: closestSegments(center, Array.from(seen.values()), segmentLimit),
+      segments: segmentsWithinRadius(center, Array.from(seen.values()), radiusKm, segmentLimit),
       message,
     });
   } catch (error) {
     if (seen.size > 0) {
       return NextResponse.json({
         source,
-        segments: closestSegments(center, Array.from(seen.values()), segmentLimit),
+        segments: segmentsWithinRadius(center, Array.from(seen.values()), radiusKm, segmentLimit),
         message:
           error instanceof Error
             ? `${error.message} Returning the segments loaded before the request failed.`
@@ -91,13 +94,19 @@ function normalizeActivity(value: string | null): StravaExploreActivity {
   return "all";
 }
 
-function closestSegments(center: LatLng, segments: ExternalRouteMock[], limit: number) {
+function segmentsWithinRadius(
+  center: LatLng,
+  segments: ExternalRouteMock[],
+  radiusKm: number,
+  limit: number,
+) {
   return segments
     .map((segment) => ({
       segment,
       distanceToStartKm: haversineDistanceKm(center, segment.geometry[0]),
       distanceToRouteKm: minRouteDistanceKm(center, segment),
     }))
+    .filter(({ distanceToRouteKm }) => distanceToRouteKm <= radiusKm)
     .sort((a, b) => {
       const routeDistance = a.distanceToRouteKm - b.distanceToRouteKm;
       return routeDistance === 0 ? a.distanceToStartKm - b.distanceToStartKm : routeDistance;
@@ -119,10 +128,51 @@ function boundsAround(center: LatLng, radiusKm: number): [number, number, number
 }
 
 function minRouteDistanceKm(point: LatLng, route: ExternalRouteMock) {
-  return route.geometry.reduce(
-    (closest, routePoint) => Math.min(closest, haversineDistanceKm(point, routePoint)),
-    Number.POSITIVE_INFINITY,
+  return route.geometry.reduce((closest, routePoint, index) => {
+    const pointDistanceKm = haversineDistanceKm(point, routePoint);
+
+    if (index === 0) {
+      return pointDistanceKm;
+    }
+
+    return Math.min(
+      closest,
+      pointDistanceKm,
+      pointToSegmentDistanceKm(point, route.geometry[index - 1], routePoint),
+    );
+  }, Number.POSITIVE_INFINITY);
+}
+
+function pointToSegmentDistanceKm(point: LatLng, start: LatLng, end: LatLng) {
+  const startVector = projectedOffsetKm(point, start);
+  const endVector = projectedOffsetKm(point, end);
+  const segmentX = endVector.x - startVector.x;
+  const segmentY = endVector.y - startVector.y;
+  const segmentLengthSquared = segmentX ** 2 + segmentY ** 2;
+
+  if (segmentLengthSquared === 0) {
+    return haversineDistanceKm(point, start);
+  }
+
+  const projection = clamp(
+    -(startVector.x * segmentX + startVector.y * segmentY) / segmentLengthSquared,
+    0,
+    1,
   );
+  const closestX = startVector.x + segmentX * projection;
+  const closestY = startVector.y + segmentY * projection;
+
+  return Math.sqrt(closestX ** 2 + closestY ** 2);
+}
+
+function projectedOffsetKm(origin: LatLng, point: LatLng) {
+  const kmPerDegreeLat = 111.32;
+  const kmPerDegreeLng = kmPerDegreeLat * Math.cos((origin.lat * Math.PI) / 180);
+
+  return {
+    x: (point.lng - origin.lng) * kmPerDegreeLng,
+    y: (point.lat - origin.lat) * kmPerDegreeLat,
+  };
 }
 
 function uniqueRadii(radii: number[]) {

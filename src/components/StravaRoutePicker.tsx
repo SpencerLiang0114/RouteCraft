@@ -176,7 +176,7 @@ export function StravaRoutePicker() {
           setSelectedRouteId(data.segments[0].id);
           setStravaStatus("live");
           setStravaMessage(
-            `Showing ${data.segments.length} of up to ${segmentLimit} live Strava segment${data.segments.length === 1 ? "" : "s"} from a ${startingRadiusKm} km starting radius.`,
+            `Showing ${data.segments.length} of up to ${segmentLimit} live Strava segment${data.segments.length === 1 ? "" : "s"} with a path inside ${startingRadiusKm} km.`,
           );
           return;
         }

@@ -2,6 +2,7 @@ import { decodePolyline } from "./polyline";
 import type { ExternalRouteMock, RouteAnalysisSignals } from "@/types/route";
 
 const STRAVA_API_BASE = "https://www.strava.com/api/v3";
+const SEGMENT_EXPLORE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 interface TokenState {
   accessToken?: string;
@@ -13,6 +14,8 @@ let tokenState: TokenState = {
   accessToken: process.env.STRAVA_ACCESS_TOKEN,
   refreshToken: process.env.STRAVA_REFRESH_TOKEN,
 };
+
+const segmentExploreCache = new Map<string, { expiresAt: number; response: StravaExplorerResponse }>();
 
 interface StravaExplorerSegment {
   id: number;
@@ -87,6 +90,12 @@ async function fetchExplorerSegments(
     activity_type: activity,
   });
   const url = `${STRAVA_API_BASE}/segments/explore?${params.toString()}`;
+  const cached = segmentExploreCache.get(url);
+
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.response;
+  }
+
   let response = await stravaFetch(url);
 
   if (response.status === 401) {
@@ -98,7 +107,13 @@ async function fetchExplorerSegments(
     throw new Error(`Strava segments request failed with ${response.status}.`);
   }
 
-  return (await response.json()) as StravaExplorerResponse;
+  const data = (await response.json()) as StravaExplorerResponse;
+  segmentExploreCache.set(url, {
+    expiresAt: Date.now() + SEGMENT_EXPLORE_CACHE_TTL_MS,
+    response: data,
+  });
+
+  return data;
 }
 
 async function stravaFetch(url: string) {
