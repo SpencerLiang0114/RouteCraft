@@ -20,6 +20,14 @@ RouteCraft is a Next.js 16 App Router application. The primary user flow is:
 
 **Landing (`/`) → `/route-source` → `/strava` | `/alltrails` | `/wizard` → `/results` → `/saved`**
 
+### Path alias
+
+`@/` maps to `src/`. Use it for all imports — never use relative paths across directory boundaries.
+
+### Page component pattern
+
+Every page in `src/app/` is a thin server component that just renders a corresponding `*Client.tsx` component from `src/components/`. All interactivity, state, and hooks live in the client component.
+
 ### Strict client/server boundary
 
 Three categories of code enforce the boundary:
@@ -66,13 +74,15 @@ Each `RouteEdge` carries per-segment scores (parkScore, shadeScore, safetyScore,
 
 The `src/lib/routing/` sub-tree has its own `routeAnalyzer.ts`, `routeScoring.ts`, and `geoUtils.ts` that are specific to the generated-route pipeline. These are intentionally separate from the top-level `src/lib/` counterparts which handle external/uploaded routes.
 
-### External APIs (no auth)
+### External APIs
 
 - **Overpass API** (`overpass-api.de`) — OSM highway and green-space data
 - **Open-Meteo** (`api.open-meteo.com/v1/elevation`) — elevation, primary
 - **Open-Elevation** (`api.open-elevation.com`) — elevation, fallback
-- **Nominatim** — geocoding, proxied via `/api/geocode/search`
-- **Strava** — currently mocked in `src/backend/strava/stravaApi.ts`
+- **Nominatim** — geocoding, proxied via `GET /api/geocode/search`
+- **Strava** — segment exploration proxied via `GET /api/strava/segments`; attempts the real API using credentials from `.env.local`, falls back to mocks in `src/backend/strava/stravaApi.ts` when credentials are absent
+
+Copy `.env.example` to `.env.local` and supply Strava OAuth credentials to enable real Strava data.
 
 ### Maps
 
