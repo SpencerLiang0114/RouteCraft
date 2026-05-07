@@ -1,7 +1,16 @@
 <!-- BEGIN:nextjs-agent-rules -->
+# Repository layout
+
+This is a two-runtime monorepo:
+
+- `apps/web/` — Next.js 16 frontend. All `npm` commands run from this directory.
+- `services/routecraft-api/` — Spring Boot 4 / Java 21 backend. All `./mvnw` commands run from this directory.
+
+There is no root `package.json` and no npm workspaces.
+
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `apps/web/node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
 <!-- code-review-graph MCP tools -->
