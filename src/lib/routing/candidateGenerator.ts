@@ -54,18 +54,15 @@ function pickBestNodeNear(
   preferences: UserPreferences,
   excludedNodeIds: Set<string>,
 ) {
-  return Object.values(graph.nodes)
-    .filter((node) => !excludedNodeIds.has(node.id))
-    .map((node) => {
-      const proximityM = distanceM(point, node.point);
-      const quality = routeQualityNearNode(graph, node.id, preferences);
+  let best: { node: RouteNode; score: number } | undefined;
 
-      return {
-        node,
-        score: quality * 1000 - proximityM,
-      };
-    })
-    .sort((a, b) => b.score - a.score)[0]?.node;
+  for (const node of Object.values(graph.nodes)) {
+    if (excludedNodeIds.has(node.id)) continue;
+    const score = routeQualityNearNode(graph, node.id, preferences) * 1000 - distanceM(point, node.point);
+    if (!best || score > best.score) best = { node, score };
+  }
+
+  return best?.node;
 }
 
 export function generateLoopWaypointSets(
@@ -136,25 +133,33 @@ export function findOutAndBackDestinations(
   const targetOutboundM = (resolveTargetDistanceKm(preferences) * 1000) / 2;
   const toleranceM = Math.max(400, targetOutboundM * 0.4);
 
-  return Object.values(graph.nodes)
-    .filter((node) => node.id !== startNode.id)
-    .map((node) => {
-      const radialDistance = distanceM(startNode.point, node.point);
-      const bearing = bearingDegrees(startNode.point, node.point);
-      const distanceScore = 1 - Math.min(1, Math.abs(radialDistance - targetOutboundM) / toleranceM);
-      const quality = routeQualityNearNode(graph, node.id, preferences);
-      const explorationBias =
-        normalizePreference(preferences.explorationPreference) * angularDifference(bearing, 45) * -0.004;
+  const K = 12;
+  const topK: Array<{ node: RouteNode; score: number }> = [];
 
-      return {
-        node,
-        score: distanceScore * 3 + quality + explorationBias,
-      };
-    })
-    .filter((item) => item.score > 0.5)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 12)
-    .map((item) => item.node);
+  for (const node of Object.values(graph.nodes)) {
+    if (node.id === startNode.id) continue;
+    const radialDistance = distanceM(startNode.point, node.point);
+    const bearing = bearingDegrees(startNode.point, node.point);
+    const distanceScore = 1 - Math.min(1, Math.abs(radialDistance - targetOutboundM) / toleranceM);
+    const quality = routeQualityNearNode(graph, node.id, preferences);
+    const explorationBias =
+      normalizePreference(preferences.explorationPreference) * angularDifference(bearing, 45) * -0.004;
+    const score = distanceScore * 3 + quality + explorationBias;
+
+    if (score <= 0.5) continue;
+
+    topK.push({ node, score });
+
+    if (topK.length > K) {
+      let minIdx = 0;
+      for (let i = 1; i < topK.length; i++) {
+        if (topK[i].score < topK[minIdx].score) minIdx = i;
+      }
+      topK.splice(minIdx, 1);
+    }
+  }
+
+  return topK.sort((a, b) => b.score - a.score).map((item) => item.node);
 }
 
 export function filterByDistance<T extends RouteCandidate>(

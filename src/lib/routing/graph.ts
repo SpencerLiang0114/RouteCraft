@@ -31,10 +31,18 @@ export interface RouteEdge {
   accessRestrictions?: string[];
 }
 
+interface KdNode {
+  node: RouteNode;
+  left: KdNode | null;
+  right: KdNode | null;
+  axis: 0 | 1;
+}
+
 export interface RouteGraph {
   nodes: Record<string, RouteNode>;
   edges: RouteEdge[];
   adjacency: Record<string, RouteEdge[]>;
+  kdTree: KdNode | null;
 }
 
 export interface PathResult {
@@ -54,6 +62,60 @@ interface PathOptions {
 interface QueueItem {
   nodeId: string;
   priority: number;
+}
+
+function buildKdTree(nodes: RouteNode[], depth = 0): KdNode | null {
+  if (nodes.length === 0) return null;
+  const axis = (depth % 2) as 0 | 1;
+  const sorted = [...nodes].sort((a, b) =>
+    axis === 0 ? a.point.lat - b.point.lat : a.point.lng - b.point.lng,
+  );
+  const mid = Math.floor(sorted.length / 2);
+  return {
+    node: sorted[mid],
+    left: buildKdTree(sorted.slice(0, mid), depth + 1),
+    right: buildKdTree(sorted.slice(mid + 1), depth + 1),
+    axis,
+  };
+}
+
+function kdNearest(
+  tree: KdNode | null,
+  point: LatLng,
+  best: { node: RouteNode; dist: number } | null,
+): { node: RouteNode; dist: number } | null {
+  if (!tree) return best;
+  const d = distanceM(point, tree.node.point);
+  if (!best || d < best.dist) best = { node: tree.node, dist: d };
+  const diff = tree.axis === 0 ? point.lat - tree.node.point.lat : point.lng - tree.node.point.lng;
+  const [near, far] = diff < 0 ? [tree.left, tree.right] : [tree.right, tree.left];
+  best = kdNearest(near, point, best);
+  const planePoint: LatLng =
+    tree.axis === 0
+      ? { lat: tree.node.point.lat, lng: point.lng }
+      : { lat: point.lat, lng: tree.node.point.lng };
+  if (distanceM(point, planePoint) < best!.dist) best = kdNearest(far, point, best);
+  return best;
+}
+
+function kdRange(
+  tree: KdNode | null,
+  point: LatLng,
+  radiusM: number,
+  toleranceM: number,
+  results: Array<{ node: RouteNode; distanceM: number }>,
+): void {
+  if (!tree) return;
+  const d = distanceM(point, tree.node.point);
+  if (Math.abs(d - radiusM) <= toleranceM) results.push({ node: tree.node, distanceM: d });
+  const diff = tree.axis === 0 ? point.lat - tree.node.point.lat : point.lng - tree.node.point.lng;
+  const [near, far] = diff < 0 ? [tree.left, tree.right] : [tree.right, tree.left];
+  kdRange(near, point, radiusM, toleranceM, results);
+  const planePoint: LatLng =
+    tree.axis === 0
+      ? { lat: tree.node.point.lat, lng: point.lng }
+      : { lat: point.lat, lng: tree.node.point.lng };
+  if (distanceM(point, planePoint) <= radiusM + toleranceM) kdRange(far, point, radiusM, toleranceM, results);
 }
 
 export function createGraph(nodes: RouteNode[], edges: RouteEdge[]): RouteGraph {
@@ -76,17 +138,17 @@ export function createGraph(nodes: RouteNode[], edges: RouteEdge[]): RouteGraph 
     nodes: nodeMap,
     edges,
     adjacency,
+    kdTree: buildKdTree(nodes),
   };
 }
 
 export function findNearestNode(graph: RouteGraph, point: LatLng) {
+  if (graph.kdTree) {
+    return kdNearest(graph.kdTree, point, null)?.node;
+  }
   return Object.values(graph.nodes).reduce((nearest, node) => {
     const nodeDistance = distanceM(point, node.point);
-
-    if (!nearest || nodeDistance < nearest.distanceM) {
-      return { node, distanceM: nodeDistance };
-    }
-
+    if (!nearest || nodeDistance < nearest.distanceM) return { node, distanceM: nodeDistance };
     return nearest;
   }, undefined as { node: RouteNode; distanceM: number } | undefined)?.node;
 }
@@ -97,11 +159,13 @@ export function findNodesWithinRadius(
   radiusM: number,
   toleranceM: number,
 ) {
+  if (graph.kdTree) {
+    const results: Array<{ node: RouteNode; distanceM: number }> = [];
+    kdRange(graph.kdTree, point, radiusM, toleranceM, results);
+    return results.sort((a, b) => a.distanceM - b.distanceM);
+  }
   return Object.values(graph.nodes)
-    .map((node) => ({
-      node,
-      distanceM: distanceM(point, node.point),
-    }))
+    .map((node) => ({ node, distanceM: distanceM(point, node.point) }))
     .filter((item) => Math.abs(item.distanceM - radiusM) <= toleranceM)
     .sort((a, b) => a.distanceM - b.distanceM);
 }
@@ -136,7 +200,7 @@ function reconstructPath(
   totalCost: number,
 ): PathResult | undefined {
   const edges: RouteEdge[] = [];
-  const nodeIds = [endId];
+  const nodeIds: string[] = [endId];
   let current = endId;
 
   while (current !== startId) {
@@ -146,10 +210,13 @@ function reconstructPath(
       return undefined;
     }
 
-    edges.unshift(step.edge);
+    edges.push(step.edge);
     current = step.previousNodeId;
-    nodeIds.unshift(current);
+    nodeIds.push(current);
   }
+
+  edges.reverse();
+  nodeIds.reverse();
 
   return pathFromEdges(graph, nodeIds, edges, totalCost);
 }
@@ -160,13 +227,12 @@ export function pathFromEdges(
   edges: RouteEdge[],
   cost: number,
 ): PathResult {
-  const geometry = edges.reduce<LatLng[]>((points, edge, index) => {
-    if (index === 0) {
-      return [...edge.geometry];
-    }
-
-    return [...points, ...edge.geometry.slice(1)];
-  }, []);
+  const geometry: LatLng[] = [];
+  for (let i = 0; i < edges.length; i++) {
+    const pts = edges[i].geometry;
+    const start = i === 0 ? 0 : 1;
+    for (let j = start; j < pts.length; j++) geometry.push(pts[j]);
+  }
 
   if (geometry.length === 0 && nodeIds.length > 0) {
     geometry.push(graph.nodes[nodeIds[0]].point);
@@ -254,6 +320,7 @@ export function findShortestPath(
   openQueue.push({ nodeId: startId, priority: 0 });
   const cameFrom = new Map<string, { previousNodeId: string; edge: RouteEdge }>();
   const costSoFar = new Map<string, number>([[startId, 0]]);
+  const settled = new Set<string>();
 
   while (openQueue.size > 0) {
     const current = openQueue.pop();
@@ -261,6 +328,12 @@ export function findShortestPath(
     if (!current) {
       break;
     }
+
+    if (settled.has(current.nodeId)) {
+      continue;
+    }
+
+    settled.add(current.nodeId);
 
     if (current.nodeId === endId) {
       return reconstructPath(graph, startId, endId, cameFrom, costSoFar.get(endId) ?? 0);
@@ -396,13 +469,13 @@ export function reversePath(path: PathResult): PathResult {
 
 export function combinePaths(graph: RouteGraph, paths: PathResult[]) {
   const edges = paths.flatMap((path) => path.edges);
-  const nodeIds = paths.reduce<string[]>((result, path, index) => {
-    if (index === 0) {
-      return [...path.nodeIds];
-    }
+  const nodeIds: string[] = [];
 
-    return [...result, ...path.nodeIds.slice(1)];
-  }, []);
+  for (let i = 0; i < paths.length; i++) {
+    const ids = paths[i].nodeIds;
+    const start = i === 0 ? 0 : 1;
+    for (let j = start; j < ids.length; j++) nodeIds.push(ids[j]);
+  }
 
   return pathFromEdges(graph, nodeIds, edges, paths.reduce((total, path) => total + path.cost, 0));
 }
