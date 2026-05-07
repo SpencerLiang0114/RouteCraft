@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: routecraft
+      POSTGRES_USER: routecraft
+      POSTGRES_PASSWORD: routecraft
+    ports:
+      - "5432:5432"
+    volumes:
+      - routecraft_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U routecraft -d routecraft"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  routecraft-api:
+    build:
+      context: ./services/routecraft-api
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/routecraft
+      SPRING_DATASOURCE_USERNAME: routecraft
+      SPRING_DATASOURCE_PASSWORD: routecraft
+      SERVER_PORT: 18080
+      ROUTECRAFT_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    ports:
+      - "18080:18080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  routecraft_postgres_data:
