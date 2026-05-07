@@ -49,10 +49,10 @@ Open [http://localhost:3000](http://localhost:3000).
 
 `POST /api/routing/generate` → `generateRoutes()` in `src/backend/routing/routeGenerator.ts`:
 
-1. **Graph loading** — `loadOsmGraphNear()` fetches highway and green-space data from Overpass and elevation from Open-Meteo. Falls back to `loadMockGraphNear()` on failure.
+1. **Graph loading** — `loadOsmGraphNear()` fetches highway and green-space data from Overpass and elevation from Open-Meteo. If mapped road/path data cannot be loaded, generation fails instead of returning synthetic off-road geometry.
 2. **Path finding** — candidates are found with A\* and Yen's K-shortest paths (see below).
 3. **Route type dispatch** — `loopGenerator`, `outAndBackGenerator`, `pointToPointGenerator` each use the graph differently.
-4. **Candidate selection** — `candidateGenerator.ts` ranks candidates; `routeDiversity.ts` filters for geometric diversity; top 3 routes are returned labeled Recommended, Lowest Elevation, and Exploration.
+4. **Candidate selection** — `candidateGenerator.ts` ranks candidates; `routeDiversity.ts` filters for geometric diversity; up to 3 routes are returned labeled Recommended, Lowest Elevation, and Exploration.
 
 ## Pathfinding Algorithm
 

@@ -98,31 +98,54 @@ function selectTopRoutes(
   return applyGeneratedRouteLabels(selected).slice(0, 3).map(stripInternalFields);
 }
 
+function scaleElevationProfileDistance(
+  profile: NonNullable<RouteCandidate["elevationProfile"]>,
+  distanceKm: number,
+) {
+  const profileDistanceKm = profile.at(-1)?.distanceKm ?? 0;
+
+  if (profileDistanceKm <= 0 || distanceKm <= 0) {
+    return profile;
+  }
+
+  const distanceScale = distanceKm / profileDistanceKm;
+
+  return profile.map((point) => ({
+    ...point,
+    distanceKm: Math.round(point.distanceKm * distanceScale * 100) / 100,
+  }));
+}
+
 async function enrichRoutesWithElevation(routes: RouteCandidate[]): Promise<RouteCandidate[]> {
-  return Promise.all(
-    routes.map(async (route) => {
-      try {
-        const elevData = await fetchRouteElevationProfile(route.geometry);
-        if (!elevData) return route;
-        const averageSlopePct =
-          route.distanceKm > 0
-            ? Math.round((elevData.elevationGainM / (route.distanceKm * 1000)) * 1000) / 10
-            : route.averageSlopePct;
-        return {
-          ...route,
-          elevationProfile: elevData.profile,
-          elevationGainM: elevData.elevationGainM,
-          totalDescentM: elevData.totalDescentM,
-          lowestElevM: elevData.lowestElevM,
-          highestElevM: elevData.highestElevM,
-          elevDifferenceM: elevData.elevDifferenceM,
-          averageSlopePct,
-        };
-      } catch {
-        return route;
+  const enriched: RouteCandidate[] = [];
+
+  for (const route of routes) {
+    try {
+      const elevData = await fetchRouteElevationProfile(route.geometry);
+      if (!elevData) {
+        enriched.push(route);
+        continue;
       }
-    }),
-  );
+      const averageSlopePct =
+        route.distanceKm > 0
+          ? Math.round((elevData.elevationGainM / (route.distanceKm * 1000)) * 1000) / 10
+          : route.averageSlopePct;
+      enriched.push({
+        ...route,
+        elevationProfile: scaleElevationProfileDistance(elevData.profile, route.distanceKm),
+        elevationGainM: elevData.elevationGainM,
+        totalDescentM: elevData.totalDescentM,
+        lowestElevM: elevData.lowestElevM,
+        highestElevM: elevData.highestElevM,
+        elevDifferenceM: elevData.elevDifferenceM,
+        averageSlopePct,
+      });
+    } catch {
+      enriched.push(route);
+    }
+  }
+
+  return enriched;
 }
 
 export async function generateRoutes(preferences: UserPreferences): Promise<RouteCandidate[]> {
@@ -132,12 +155,20 @@ export async function generateRoutes(preferences: UserPreferences): Promise<Rout
     const graph = await loadOsmGraphNear(startPoint, preferences);
     const routes = selectTopRoutes(preferences, generateRouteCandidatesInternal(preferences, graph));
 
-    if (routes.length >= 3) {
+    if (routes.length > 0) {
       return enrichRoutesWithElevation(routes);
     }
+
+    throw new Error("No road-following routes matched the selected preferences near this start point.");
   } catch (error) {
-    console.warn("Falling back to mock routing graph.", error);
+    console.warn("Road-following route generation failed.", error);
+    if (
+      error instanceof Error &&
+      error.message === "No road-following routes matched the selected preferences near this start point."
+    ) {
+      throw error;
+    }
   }
 
-  return generateRouteCandidates(preferences);
+  throw new Error("Could not load enough mapped road/path data near the selected start point. Retry or choose a point closer to a mapped road or path.");
 }

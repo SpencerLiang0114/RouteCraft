@@ -28,9 +28,13 @@ export function ElevationChart({ profile }: { profile: ElevationPoint[] }) {
 
   const maxDist = profile[profile.length - 1].distanceKm;
   const elevations = profile.map((p) => p.elevM);
-  const minElev = Math.min(...elevations);
-  const maxElev = Math.max(...elevations);
-  const elevRange = maxElev - minElev || 1;
+  const rawMinElev = Math.min(...elevations);
+  const rawMaxElev = Math.max(...elevations);
+  const rawElevRange = rawMaxElev - rawMinElev || 1;
+  const elevPadding = Math.max(2, rawElevRange * 0.12);
+  const minElev = rawMinElev - elevPadding;
+  const maxElev = rawMaxElev + elevPadding;
+  const elevRange = maxElev - minElev;
 
   function x(d: number) {
     return PAD.left + (d / maxDist) * INNER_W;
@@ -103,7 +107,15 @@ export function ElevationChart({ profile }: { profile: ElevationPoint[] }) {
           );
         })}
 
-        <path d={areaPath} fill="#9ca3af" opacity={0.8} />
+        <path d={areaPath} fill="#9ca3af" opacity={0.68} />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="#6b7280"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
 
         {xLabels.map((d) => (
           <text

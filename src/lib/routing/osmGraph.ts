@@ -6,7 +6,11 @@ import {
   resolveTargetDistanceKm,
 } from "./geoUtils";
 
-const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
+const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.openstreetmap.ru/api/interpreter",
+];
 const ELEVATION_ENDPOINT = "https://api.open-meteo.com/v1/elevation";
 const OPEN_ELEVATION_ENDPOINT = "https://api.open-elevation.com/api/v1/lookup";
 const MAX_ELEVATION_POINTS = 800;
@@ -82,30 +86,41 @@ out body geom;
 }
 
 async function fetchOverpassElements(bbox: BBox): Promise<OsmElement[]> {
-  const response = await fetch(OVERPASS_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      "User-Agent": "RouteCraft local route generation",
-    },
-    body: new URLSearchParams({ data: buildOverpassQuery(bbox) }).toString(),
-    signal: AbortSignal.timeout(25000),
-  });
+  const body = new URLSearchParams({ data: buildOverpassQuery(bbox) }).toString();
+  let lastError: Error | undefined;
 
-  if (!response.ok) {
-    throw new Error(`Overpass request failed with ${response.status}.`);
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+          "User-Agent": "RouteCraft local route generation",
+        },
+        body,
+        signal: AbortSignal.timeout(25000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Overpass request failed with ${response.status}.`);
+      }
+
+      const data = (await response.json()) as { elements?: RawOsmElement[] };
+      return (data.elements ?? []).map((element) => ({
+        ...element,
+        geometry: element.geometry
+          ?.map((point) => ({
+            lat: point.lat,
+            lng: point.lng ?? point.lon,
+          }))
+          .filter((point): point is LatLng => typeof point.lat === "number" && typeof point.lng === "number"),
+      }));
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Overpass request failed.");
+    }
   }
 
-  const data = (await response.json()) as { elements?: RawOsmElement[] };
-  return (data.elements ?? []).map((element) => ({
-    ...element,
-    geometry: element.geometry
-      ?.map((point) => ({
-        lat: point.lat,
-        lng: point.lng ?? point.lon,
-      }))
-      .filter((point): point is LatLng => typeof point.lat === "number" && typeof point.lng === "number"),
-  }));
+  throw lastError ?? new Error("Overpass request failed.");
 }
 
 function getNodeId(way: OsmElement, index: number, point: LatLng) {
@@ -304,6 +319,38 @@ function pointToSegmentDistanceM(point: LatLng, start: LatLng, end: LatLng) {
   return Math.hypot(startVector.x + segmentX * projection, startVector.y + segmentY * projection);
 }
 
+function closestPointOnSegment(point: LatLng, start: LatLng, end: LatLng) {
+  const startVector = projectedOffsetM(point, start);
+  const endVector = projectedOffsetM(point, end);
+  const segmentX = endVector.x - startVector.x;
+  const segmentY = endVector.y - startVector.y;
+  const segmentLengthSquared = segmentX ** 2 + segmentY ** 2;
+
+  if (segmentLengthSquared === 0) {
+    return {
+      point: start,
+      distanceM: distanceM(point, start),
+      position: 0,
+    };
+  }
+
+  const position = clamp(
+    -(startVector.x * segmentX + startVector.y * segmentY) / segmentLengthSquared,
+    0,
+    1,
+  );
+  const projectedPoint = {
+    lat: start.lat + (end.lat - start.lat) * position,
+    lng: start.lng + (end.lng - start.lng) * position,
+  };
+
+  return {
+    point: projectedPoint,
+    distanceM: Math.hypot(startVector.x + segmentX * position, startVector.y + segmentY * position),
+    position,
+  };
+}
+
 function pointInPolygon(point: LatLng, polygon: LatLng[]) {
   let inside = false;
 
@@ -445,8 +492,12 @@ async function fetchOpenElevationElevations(points: LatLng[]) {
       results?: Array<{ latitude: number; longitude: number; elevation: number }>;
     };
 
-    data.results?.forEach((point) => {
-      result.set(nodeKey({ lat: point.latitude, lng: point.longitude }), point.elevation);
+    data.results?.forEach((point, chunkIndex) => {
+      const inputPoint = chunk[chunkIndex];
+
+      if (inputPoint && typeof point.elevation === "number") {
+        result.set(nodeKey(inputPoint), point.elevation);
+      }
     });
   }
 
@@ -461,33 +512,43 @@ async function fetchElevations(points: LatLng[]) {
   }
 }
 
-const ROUTE_ELEV_STEP_M = 10;
-const ROUTE_ELEV_MAX_POINTS = 800;
+const ROUTE_ELEV_STEP_M = 25;
+const ROUTE_ELEV_MAX_POINTS = 500;
 
 function resampleGeometry(geometry: LatLng[], stepM: number, maxPoints: number): LatLng[] {
   if (geometry.length < 2) return geometry.slice();
-  const result: LatLng[] = [geometry[0]];
-  let distSinceLastSample = 0;
+  const totalDistanceM = geometryDistanceM(geometry);
 
-  for (let i = 1; i < geometry.length && result.length < maxPoints - 1; i++) {
+  if (totalDistanceM <= 0) return [geometry[0]];
+
+  const sampleCount = Math.min(
+    maxPoints,
+    Math.max(2, Math.floor(totalDistanceM / stepM) + 1),
+  );
+  const intervalM = totalDistanceM / (sampleCount - 1);
+  const result: LatLng[] = [geometry[0]];
+  let traversedM = 0;
+  let nextSampleM = intervalM;
+
+  for (let i = 1; i < geometry.length && result.length < sampleCount - 1; i++) {
     const prev = geometry[i - 1];
     const curr = geometry[i];
     const segDistM = distanceM(prev, curr);
-    let posInSeg = 0;
-    let nextSampleDist = stepM - distSinceLastSample;
 
-    while (posInSeg + nextSampleDist <= segDistM && result.length < maxPoints - 1) {
-      posInSeg += nextSampleDist;
-      const t = posInSeg / segDistM;
+    if (segDistM <= 0) {
+      continue;
+    }
+
+    while (nextSampleM <= traversedM + segDistM && result.length < sampleCount - 1) {
+      const t = (nextSampleM - traversedM) / segDistM;
       result.push({
         lat: prev.lat + t * (curr.lat - prev.lat),
         lng: prev.lng + t * (curr.lng - prev.lng),
       });
-      distSinceLastSample = 0;
-      nextSampleDist = stepM;
+      nextSampleM += intervalM;
     }
 
-    distSinceLastSample += segDistM - posInSeg;
+    traversedM += segDistM;
   }
 
   const last = geometry[geometry.length - 1];
@@ -498,7 +559,7 @@ function resampleGeometry(geometry: LatLng[], stepM: number, maxPoints: number):
 }
 
 // Gaussian-weighted moving average to remove DEM grid staircase artifacts.
-// sigma is in sample units; at 10 m/sample, sigma=4 → ~40 m smoothing radius.
+// sigma is in sample units; the current route sampler gives sigma=4 a ~100 m smoothing radius.
 function smoothElevationProfile(
   profile: Array<{ distanceKm: number; elevM: number }>,
   sigma = 4,
@@ -514,6 +575,77 @@ function smoothElevationProfile(
       elevSum += w * profile[j].elevM;
     }
     return { distanceKm: point.distanceKm, elevM: Math.round((elevSum / weightSum) * 10) / 10 };
+  });
+}
+
+function fillMissingElevationSamples(
+  samples: Array<{ distanceKm: number; elevM?: number }>,
+): Array<{ distanceKm: number; elevM: number }> {
+  const knownIndexes = samples
+    .map((sample, index) => (typeof sample.elevM === "number" ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (knownIndexes.length === 0) {
+    return [];
+  }
+
+  return samples.map((sample, index) => {
+    if (typeof sample.elevM === "number") {
+      return { distanceKm: sample.distanceKm, elevM: sample.elevM };
+    }
+
+    const previousKnown = [...knownIndexes].reverse().find((knownIndex) => knownIndex < index);
+    const nextKnown = knownIndexes.find((knownIndex) => knownIndex > index);
+
+    if (previousKnown === undefined && nextKnown === undefined) {
+      return { distanceKm: sample.distanceKm, elevM: 0 };
+    }
+
+    if (previousKnown === undefined) {
+      return { distanceKm: sample.distanceKm, elevM: samples[nextKnown!].elevM! };
+    }
+
+    if (nextKnown === undefined) {
+      return { distanceKm: sample.distanceKm, elevM: samples[previousKnown].elevM! };
+    }
+
+    const from = samples[previousKnown];
+    const to = samples[nextKnown];
+    const span = to.distanceKm - from.distanceKm;
+    const t = span > 0 ? (sample.distanceKm - from.distanceKm) / span : 0;
+
+    return {
+      distanceKm: sample.distanceKm,
+      elevM: from.elevM! + (to.elevM! - from.elevM!) * t,
+    };
+  });
+}
+
+function removeElevationSpikes(
+  profile: Array<{ distanceKm: number; elevM: number }>,
+): Array<{ distanceKm: number; elevM: number }> {
+  if (profile.length < 3) return profile;
+
+  return profile.map((point, index) => {
+    const previous = profile[index - 1];
+    const next = profile[index + 1];
+
+    if (!previous || !next) {
+      return point;
+    }
+
+    const neighborGap = Math.abs(previous.elevM - next.elevM);
+    const neighborAverage = (previous.elevM + next.elevM) / 2;
+    const spikeSize = Math.abs(point.elevM - neighborAverage);
+
+    if (neighborGap <= 4 && spikeSize >= 10) {
+      return {
+        distanceKm: point.distanceKm,
+        elevM: neighborAverage,
+      };
+    }
+
+    return point;
   });
 }
 
@@ -549,22 +681,23 @@ export async function fetchRouteElevationProfile(geometry: LatLng[]): Promise<{
   const elevations = await fetchElevations(sampled);
 
   let accDistM = 0;
-  const profile: Array<{ distanceKm: number; elevM: number }> = [];
-  let lastKnownElevM: number | undefined;
+  const samples: Array<{ distanceKm: number; elevM?: number }> = [];
 
   for (let i = 0; i < sampled.length; i++) {
     if (i > 0) accDistM += distanceM(sampled[i - 1], sampled[i]);
     const elevM = elevations.get(nodeKey(sampled[i]));
-    if (typeof elevM === "number") {
-      lastKnownElevM = elevM;
-    }
-    if (lastKnownElevM !== undefined) {
-      profile.push({ distanceKm: Math.round(accDistM / 10) / 100, elevM: Math.round(lastKnownElevM) });
-    }
+    samples.push({
+      distanceKm: Math.round(accDistM / 10) / 100,
+      elevM: typeof elevM === "number" ? elevM : undefined,
+    });
   }
 
+  const profile = fillMissingElevationSamples(samples);
   if (profile.length < 2) return null;
-  const smoothed = smoothElevationProfile(profile);
+  const smoothed = smoothElevationProfile(removeElevationSpikes(profile)).map((point) => ({
+    distanceKm: point.distanceKm,
+    elevM: Math.round(point.elevM * 10) / 10,
+  }));
   return { profile: smoothed, ...computeElevationStats(smoothed) };
 }
 
@@ -777,6 +910,71 @@ function createAnchorEdge(
   };
 }
 
+function geometryDistanceM(geometry: LatLng[]) {
+  return geometry.reduce((total, point, index) => {
+    if (index === 0) {
+      return total;
+    }
+
+    return total + distanceM(geometry[index - 1], point);
+  }, 0);
+}
+
+function closestPointOnEdge(point: LatLng, edge: RouteEdge) {
+  return edge.geometry.slice(1).reduce(
+    (closest, currentPoint, index) => {
+      const candidate = closestPointOnSegment(point, edge.geometry[index], currentPoint);
+
+      if (candidate.distanceM < closest.distanceM) {
+        return {
+          ...candidate,
+          segmentIndex: index,
+        };
+      }
+
+      return closest;
+    },
+    {
+      point: edge.geometry[0],
+      distanceM: Number.POSITIVE_INFINITY,
+      position: 0,
+      segmentIndex: 0,
+    },
+  );
+}
+
+function splitEdgeAtPoint(edge: RouteEdge, node: RouteNode, segmentIndex: number, anchorId: string) {
+  const firstGeometry = [...edge.geometry.slice(0, segmentIndex + 1), node.point];
+  const secondGeometry = [node.point, ...edge.geometry.slice(segmentIndex + 1)];
+  const firstDistanceM = Math.max(1, Math.round(geometryDistanceM(firstGeometry)));
+  const secondDistanceM = Math.max(1, Math.round(geometryDistanceM(secondGeometry)));
+  const totalDistanceM = firstDistanceM + secondDistanceM;
+  const elevationGainM = edge.elevationGainM ?? 0;
+
+  return [
+    {
+      ...edge,
+      id: `${anchorId}-${edge.id}-split-a`,
+      to: node.id,
+      distanceM: firstDistanceM,
+      geometry: firstGeometry,
+      elevationGainM: Math.round(elevationGainM * (firstDistanceM / totalDistanceM) * 10) / 10,
+      slope: edge.slope !== undefined ? edge.slope : 0,
+      toAbsElevM: undefined,
+    },
+    {
+      ...edge,
+      id: `${anchorId}-${edge.id}-split-b`,
+      from: node.id,
+      distanceM: secondDistanceM,
+      geometry: secondGeometry,
+      elevationGainM: Math.round(elevationGainM * (secondDistanceM / totalDistanceM) * 10) / 10,
+      slope: edge.slope !== undefined ? edge.slope : 0,
+      fromAbsElevM: undefined,
+    },
+  ];
+}
+
 function addAnchorNode(
   anchorId: string,
   point: LatLng | undefined,
@@ -791,20 +989,28 @@ function addAnchorNode(
     id: anchorId,
     point,
   };
-  const nearestNodes = nodes
-    .map((node) => ({
-      node,
-      distanceM: distanceM(point, node.point),
+  const nearestEdges = edges
+    .filter((edge) => edge.roadType !== "connector" && edge.geometry.length >= 2)
+    .map((edge) => ({
+      edge,
+      projection: closestPointOnEdge(point, edge),
     }))
-    .sort((a, b) => a.distanceM - b.distanceM)
+    .sort((a, b) => a.projection.distanceM - b.projection.distanceM)
     .slice(0, 6);
-  const connectorEdges = nearestNodes.map((item, index) =>
-    createAnchorEdge(`${anchorId}-connector-${index}`, anchor, item.node, edges),
+  const snapNodes = nearestEdges.map(({ projection }, index) => ({
+    id: `${anchorId}-snap-${index}`,
+    point: projection.point,
+  }));
+  const connectorEdges = nearestEdges.map(({ edge }, index) =>
+    createAnchorEdge(`${anchorId}-connector-${index}`, anchor, snapNodes[index], [edge]),
+  );
+  const splitEdges = nearestEdges.flatMap(({ edge, projection }, index) =>
+    splitEdgeAtPoint(edge, snapNodes[index], projection.segmentIndex, `${anchorId}-${index}`),
   );
 
   return {
-    nodes: [anchor, ...nodes],
-    edges: [...connectorEdges, ...edges],
+    nodes: [anchor, ...snapNodes, ...nodes],
+    edges: [...connectorEdges, ...splitEdges, ...edges],
   };
 }
 
