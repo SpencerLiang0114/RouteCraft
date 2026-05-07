@@ -248,58 +248,8 @@ export function rankRoutes<T extends RouteCandidate>(routes: T[]) {
   });
 }
 
-function stripGeneratedLabel(name: string) {
-  return name.replace(/^(Recommended Route|Lowest Elevation Route|Exploration Route):\s*/, "");
-}
-
 export function applyGeneratedRouteLabels(routes: GeneratedRouteCandidate[]) {
-  const result: GeneratedRouteCandidate[] = [];
-  const remaining = [...routes];
-  const recommended = remaining.shift();
-
-  if (recommended) {
-    result.push({
-      ...recommended,
-      name: `Recommended Route: ${stripGeneratedLabel(recommended.name)}`,
-    });
-  }
-
-  const lowestIndex = remaining.reduce((bestIndex, route, index) => {
-    if (bestIndex === -1 || route.elevationGainM < remaining[bestIndex].elevationGainM) {
-      return index;
-    }
-
-    return bestIndex;
-  }, -1);
-
-  if (lowestIndex >= 0) {
-    const [lowest] = remaining.splice(lowestIndex, 1);
-    result.push({
-      ...lowest,
-      name: `Lowest Elevation Route: ${stripGeneratedLabel(lowest.name)}`,
-    });
-  }
-
-  const explorationIndex = remaining.reduce((bestIndex, route, index) => {
-    if (
-      bestIndex === -1 ||
-      route.metrics.explorationScore > remaining[bestIndex].metrics.explorationScore
-    ) {
-      return index;
-    }
-
-    return bestIndex;
-  }, -1);
-
-  if (explorationIndex >= 0) {
-    const [exploration] = remaining.splice(explorationIndex, 1);
-    result.push({
-      ...exploration,
-      name: `Exploration Route: ${stripGeneratedLabel(exploration.name)}`,
-    });
-  }
-
-  return result;
+  return [...routes].sort((a, b) => b.metrics.totalScore - a.metrics.totalScore);
 }
 
 export function getStartNode(graph: RouteGraph, preferences: UserPreferences) {

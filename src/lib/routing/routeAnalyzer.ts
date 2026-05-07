@@ -227,14 +227,8 @@ function getDifficulty(
   return "Easy";
 }
 
-function buildExplanation(
-  route: RouteCandidate,
-  preferences: UserPreferences,
-  metrics: RouteMetrics,
-) {
-  const targetDistanceKm = resolveTargetDistanceKm(preferences);
+function buildExplanation(preferences: UserPreferences, metrics: RouteMetrics) {
   const reasons = [
-    metrics.distanceScore >= 86 ? `closely matches your ${round(targetDistanceKm, 1)} km target` : null,
     metrics.parkScore >= 70 ? "uses park paths and green corridors" : null,
     metrics.elevationScore >= 78 && preferences.routeStyle !== "climbing" ? "keeps elevation controlled" : null,
     metrics.elevationScore >= 78 && preferences.routeStyle === "climbing" ? "adds a measured climbing profile" : null,
@@ -242,7 +236,7 @@ function buildExplanation(
     metrics.safetyScore >= 76 ? "avoids higher-stress road segments" : null,
     metrics.explorationScore >= 72 ? "adds legal alternative paths for novelty" : null,
     metrics.sceneryScore >= 74 ? "includes scenic segments" : null,
-  ].filter(Boolean);
+  ].filter((reason): reason is string => reason !== null);
 
   const departureNote =
     isAfternoonDeparture(preferences.departureTime) && metrics.shadeScore >= 65
@@ -250,10 +244,14 @@ function buildExplanation(
       : "";
 
   if (reasons.length === 0) {
-    return `This ${preferences.activity} route balances distance, safety, surface quality, and outdoor appeal.`;
+    return `Balances distance, safety, surface quality, and outdoor appeal for your ${preferences.activity}.`;
   }
 
-  return `This route was selected because it ${reasons.slice(0, 4).join(", ")}${departureNote}.`;
+  const top = reasons.slice(0, 4);
+  const lead = top[0].charAt(0).toUpperCase() + top[0].slice(1);
+  const tail = top.slice(1);
+  const body = tail.length > 0 ? `${lead}, ${tail.join(", ")}` : lead;
+  return `${body}${departureNote}.`;
 }
 
 export function analyzeRoute(route: RouteDraft, preferences: UserPreferences): RouteMetrics {
@@ -334,7 +332,7 @@ export function buildRouteCandidate(route: RouteDraft, preferences: UserPreferen
 
   return {
     ...candidate,
-    explanation: buildExplanation(candidate, preferences, metrics),
+    explanation: buildExplanation(preferences, metrics),
     edgeIds: route.path.edges.map((edge) => getEdgeKey(edge)),
     edges: route.path.edges,
     strategy: route.strategy,
