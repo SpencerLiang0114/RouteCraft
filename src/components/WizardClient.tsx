@@ -24,7 +24,6 @@ const initialPreferences: UserPreferences = {
   safetyPreference: 3,
   explorationPreference: 2,
   departureTime: "Afternoon",
-  goalMode: "distance",
   routeStyle: "park_heavy",
 };
 
@@ -48,7 +47,7 @@ export function WizardClient() {
   const progress = useMemo(() => Math.round(((step + 1) / stepTitles.length) * 100), [step]);
   const cannotContinue =
     (step === 1 && !preferences.startPoint) ||
-    (step === 2 && preferences.goalMode === "point_to_point" && !preferences.endPoint);
+    (step === 2 && preferences.routeType === "point_to_point" && !preferences.endPoint);
 
   async function generateRoutes() {
     setIsGenerating(true);

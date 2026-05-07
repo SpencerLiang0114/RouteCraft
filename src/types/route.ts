@@ -4,8 +4,6 @@ export type RouteSource = "generated" | "strava" | "uploaded";
 
 export type RouteType = "loop" | "point_to_point" | "out_and_back";
 
-export type RouteGoalMode = "distance" | "time" | "point_to_point" | "loop" | "out_and_back";
-
 export type RouteStyle =
   | "easy_flat"
   | "park_heavy"
@@ -34,7 +32,6 @@ export interface UserPreferences {
   safetyPreference: number;
   explorationPreference: number;
   departureTime: string;
-  goalMode?: RouteGoalMode;
   routeStyle?: RouteStyle;
 }
 

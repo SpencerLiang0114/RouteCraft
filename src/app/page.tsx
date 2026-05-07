@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowRight, Bike, Footprints, Mountain, Route } from "lucide-react";
@@ -67,10 +68,24 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-4 px-4 py-12 sm:px-6 md:grid-cols-3 lg:px-8">
-        <Feature icon={<Footprints size={24} />} title="Running" text="Distance accuracy, parks, safety, and fewer complex crossings." />
-        <Feature icon={<Mountain size={24} />} title="Hiking" text="Trail feel, scenery, elevation profile, and natural shade." />
-        <Feature icon={<Bike size={24} />} title="Cycling" text="Bike-friendly corridors, safer roads, surfaces, and manageable climbs." />
+      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.7fr)] lg:px-8">
+        <figure className="overflow-hidden rounded-lg border border-stone-200 bg-white p-2 shadow-sm">
+          <Image
+            src="/routecraft.png"
+            alt="RouteCraft route recommendation demo with a map, elevation profile, and route score"
+            width={1129}
+            height={803}
+            sizes="(max-width: 1024px) 100vw, 68vw"
+            loading="eager"
+            className="h-full w-full rounded-md object-contain"
+          />
+        </figure>
+
+        <div className="grid gap-4">
+          <Feature icon={<Footprints size={24} />} title="Running" text="Distance accuracy, parks, safety, and fewer complex crossings." />
+          <Feature icon={<Mountain size={24} />} title="Hiking" text="Trail feel, scenery, elevation profile, and natural shade." />
+          <Feature icon={<Bike size={24} />} title="Cycling" text="Bike-friendly corridors, safer roads, surfaces, and manageable climbs." />
+        </div>
       </section>
     </main>
   );

@@ -1,14 +1,36 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowLeftRight, Clock, Flag, Loader2, MapPin, MousePointer2, RotateCw, Route, Search } from "lucide-react";
 import type { LayerGroup, Map as LeafletMap } from "leaflet";
-import type { LatLng, RouteGoalMode, UserPreferences } from "@/types/route";
+import type { LatLng, RouteType, UserPreferences } from "@/types/route";
 
-const goals: Array<{ value: RouteGoalMode; label: string; icon: typeof Route }> = [
-  { value: "distance", label: "By distance", icon: Route },
-  { value: "time", label: "By time", icon: Clock },
+type RouteGoal = Extract<RouteType, "point_to_point" | "loop">;
+type TargetMode = "distance" | "time";
+
+const routeGoals: Array<{ value: RouteGoal; label: string; icon: typeof Route }> = [
   { value: "point_to_point", label: "Point-to-point", icon: Flag },
   { value: "loop", label: "Loop route", icon: RotateCw },
+];
+
+const targetModes: Array<{ value: TargetMode; label: string; icon: typeof Route }> = [
+  { value: "distance", label: "Distance", icon: Route },
+  { value: "time", label: "Time", icon: Clock },
+];
+
+const loopShapes: Array<{ value: Extract<RouteType, "loop" | "out_and_back">; label: string; icon: typeof Route }> = [
+  { value: "loop", label: "Loop", icon: RotateCw },
   { value: "out_and_back", label: "Out & back", icon: ArrowLeftRight },
+];
+
+const distancePresetValues = [
+  { label: "3 km", value: 3 },
+  { label: "5 km", value: 5 },
+  { label: "10 km", value: 10 },
+];
+
+const timePresetValues = [
+  { label: "30 min", value: 30 },
+  { label: "60 min", value: 60 },
+  { label: "2 hr", value: 120 },
 ];
 
 const defaultMapCenter: LatLng = { lat: 40.0149, lng: -105.2705 };
@@ -31,33 +53,51 @@ export function RouteGoalSelector({
   preferences: UserPreferences;
   onChange: (preferences: UserPreferences) => void;
 }) {
-  const goalMode = preferences.goalMode ?? "distance";
+  const routeGoal: RouteGoal = preferences.routeType === "point_to_point" ? "point_to_point" : "loop";
+  const targetMode: TargetMode = preferences.targetDurationMin ? "time" : "distance";
+  const presetLabel = targetMode === "distance" ? "Distance presets" : "Time presets";
+
+  function selectRouteGoal(nextGoal: RouteGoal) {
+    onChange({
+      ...preferences,
+      routeType:
+        nextGoal === "point_to_point"
+          ? "point_to_point"
+          : preferences.routeType === "out_and_back"
+            ? "out_and_back"
+            : "loop",
+    });
+  }
+
+  function selectTargetMode(nextMode: TargetMode) {
+    if (nextMode === "distance") {
+      onChange({
+        ...preferences,
+        targetDistanceKm: preferences.targetDistanceKm ?? 8,
+        targetDurationMin: undefined,
+      });
+      return;
+    }
+
+    onChange({
+      ...preferences,
+      targetDistanceKm: undefined,
+      targetDurationMin: preferences.targetDurationMin ?? 60,
+    });
+  }
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-4">
-        {goals.map((goal) => {
+      <div className="grid gap-3 md:grid-cols-2">
+        {routeGoals.map((goal) => {
           const Icon = goal.icon;
-          const selected = goalMode === goal.value;
+          const selected = routeGoal === goal.value;
 
           return (
             <button
               key={goal.value}
               type="button"
-              onClick={() =>
-                onChange({
-                  ...preferences,
-                  goalMode: goal.value,
-                  routeType:
-                    goal.value === "point_to_point"
-                      ? "point_to_point"
-                      : goal.value === "loop"
-                        ? "loop"
-                        : goal.value === "out_and_back"
-                          ? "out_and_back"
-                          : preferences.routeType,
-                })
-              }
+              onClick={() => selectRouteGoal(goal.value)}
               className={`min-h-32 rounded-lg border p-4 text-left ${
                 selected
                   ? "border-emerald-800 bg-emerald-950 text-white"
@@ -71,107 +111,79 @@ export function RouteGoalSelector({
         })}
       </div>
 
-      {goalMode === "distance" && (
-        <PresetRow
-          label="Distance presets"
-          values={[
-            { label: "3 km", value: 3 },
-            { label: "5 km", value: 5 },
-            { label: "10 km", value: 10 },
-          ]}
-          customValue={preferences.targetDistanceKm ?? 8}
-          selectedValue={preferences.targetDistanceKm}
-          suffix="km"
-          onSelect={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-          onCustom={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-        />
+      {routeGoal === "loop" && (
+        <div className="rounded-lg border border-stone-200 bg-white p-4">
+          <p className="font-semibold text-stone-950">Route shape</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {loopShapes.map((shape) => {
+              const Icon = shape.icon;
+              const selected = preferences.routeType === shape.value;
+
+              return (
+                <button
+                  key={shape.value}
+                  type="button"
+                  onClick={() => onChange({ ...preferences, routeType: shape.value })}
+                  className={`flex min-h-16 items-center gap-3 rounded-lg border px-4 py-3 text-left font-semibold ${
+                    selected
+                      ? "border-emerald-800 bg-emerald-950 text-white"
+                      : "border-stone-200 bg-stone-50 text-stone-800 hover:border-emerald-700"
+                  }`}
+                >
+                  <Icon size={19} />
+                  {shape.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      {goalMode === "time" && (
-        <PresetRow
-          label="Time presets"
-          values={[
-            { label: "30 min", value: 30 },
-            { label: "60 min", value: 60 },
-            { label: "2 hr", value: 120 },
-          ]}
-          customValue={preferences.targetDurationMin ?? 75}
-          selectedValue={preferences.targetDurationMin}
-          suffix="min"
-          onSelect={(value) =>
-            onChange({ ...preferences, targetDurationMin: value, targetDistanceKm: undefined })
-          }
-          onCustom={(value) =>
-            onChange({ ...preferences, targetDurationMin: value, targetDistanceKm: undefined })
-          }
-        />
-      )}
+      <div className="rounded-lg border border-stone-200 bg-white p-4">
+        <p className="font-semibold text-stone-950">Target</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {targetModes.map((mode) => {
+            const Icon = mode.icon;
+            const selected = targetMode === mode.value;
 
-      {goalMode === "loop" && (
-        <PresetRow
-          label="Loop distance presets"
-          values={[
-            { label: "3 km", value: 3 },
-            { label: "5 km", value: 5 },
-            { label: "10 km", value: 10 },
-          ]}
-          customValue={preferences.targetDistanceKm ?? 8}
-          selectedValue={preferences.targetDistanceKm}
-          suffix="km"
-          onSelect={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-          onCustom={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-        />
-      )}
+            return (
+              <button
+                key={mode.value}
+                type="button"
+                onClick={() => selectTargetMode(mode.value)}
+                className={`flex min-h-16 items-center gap-3 rounded-lg border px-4 py-3 text-left font-semibold ${
+                  selected
+                    ? "border-emerald-800 bg-emerald-950 text-white"
+                    : "border-stone-200 bg-stone-50 text-stone-800 hover:border-emerald-700"
+                }`}
+              >
+                <Icon size={19} />
+                {mode.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {goalMode === "out_and_back" && (
-        <PresetRow
-          label="Total distance presets"
-          values={[
-            { label: "3 km", value: 3 },
-            { label: "5 km", value: 5 },
-            { label: "10 km", value: 10 },
-          ]}
-          customValue={preferences.targetDistanceKm ?? 8}
-          selectedValue={preferences.targetDistanceKm}
-          suffix="km"
-          onSelect={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-          onCustom={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-        />
-      )}
+      <PresetRow
+        label={presetLabel}
+        values={targetMode === "distance" ? distancePresetValues : timePresetValues}
+        customValue={targetMode === "distance" ? preferences.targetDistanceKm ?? 8 : preferences.targetDurationMin ?? 75}
+        selectedValue={targetMode === "distance" ? preferences.targetDistanceKm : preferences.targetDurationMin}
+        suffix={targetMode === "distance" ? "km" : "min"}
+        onSelect={(value) =>
+          targetMode === "distance"
+            ? onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
+            : onChange({ ...preferences, targetDurationMin: value, targetDistanceKm: undefined })
+        }
+        onCustom={(value) =>
+          targetMode === "distance"
+            ? onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
+            : onChange({ ...preferences, targetDurationMin: value, targetDistanceKm: undefined })
+        }
+      />
 
-      {goalMode === "point_to_point" && (
-        <PresetRow
-          label="Route distance presets"
-          values={[
-            { label: "3 km", value: 3 },
-            { label: "5 km", value: 5 },
-            { label: "10 km", value: 10 },
-          ]}
-          customValue={preferences.targetDistanceKm ?? 8}
-          selectedValue={preferences.targetDistanceKm}
-          suffix="km"
-          onSelect={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-          onCustom={(value) =>
-            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
-          }
-        />
-      )}
-
-      {goalMode === "point_to_point" && (
+      {routeGoal === "point_to_point" && (
         <PointToPointMap
           startPoint={preferences.startPoint}
           endPoint={preferences.endPoint}
