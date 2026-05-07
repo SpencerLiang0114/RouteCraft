@@ -90,7 +90,7 @@ function selectTopRoutes(
       ? distanceFiltered
       : [...distanceFiltered, ...candidates.sort(byDistanceMiss(preferences))]
           .filter((route, index, routes) => routes.findIndex((item) => item.id === route.id) === index)
-          .slice(0, Math.max(3, candidates.length));
+          .slice(0, 8);
   const ranked = rankRoutes(routePool);
   const diverse = filterDiverseRoutes(ranked, 0.7);
   const selected = diverse.length >= 3 ? diverse : filterDiverseRoutes(ranked, 0.9);

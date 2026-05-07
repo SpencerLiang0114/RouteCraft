@@ -47,15 +47,8 @@ export function resolveTargetDistanceKm(preferences: UserPreferences) {
 }
 
 export function distanceToleranceRatio(targetDistanceKm: number) {
-  if (targetDistanceKm <= 5) {
-    return 0.1;
-  }
-
-  if (targetDistanceKm <= 15) {
-    return 0.08;
-  }
-
-  return 0.05;
+  // ±500 m expressed as a proportion of target distance
+  return 0.5 / targetDistanceKm;
 }
 
 export function distanceM(a: LatLng, b: LatLng) {

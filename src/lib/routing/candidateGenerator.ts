@@ -71,12 +71,15 @@ export function generateLoopWaypointSets(
   startNode: RouteNode,
 ) {
   const targetDistanceM = resolveTargetDistanceKm(preferences) * 1000;
-  const baseRadiusM = Math.max(450, targetDistanceM / 4);
-  const radii = [baseRadiusM * 0.85, baseRadiusM, baseRadiusM * 1.15, targetDistanceM / 3];
+  // Radius factors account for ~1.3× road-detour on the actual A* path.
+  // 2-waypoint (triangle) straight-line perimeter ≈ 3.46R → × 1.3 ≈ 4.5R → R = D/4.5
+  // 3-waypoint (quad) straight-line perimeter ≈ 4.51R → × 1.3 ≈ 5.86R → R = D/6
+  const twoWpBaseRadiusM = Math.max(450, targetDistanceM / 4.5);
+  const threeWpBaseRadiusM = Math.max(300, targetDistanceM / 6);
   const bearings = [0, 45, 90, 135, 180, 225, 270, 315];
   const sets: WaypointSet[] = [];
 
-  for (const radiusM of radii) {
+  for (const radiusM of [twoWpBaseRadiusM * 0.9, twoWpBaseRadiusM, twoWpBaseRadiusM * 1.1]) {
     for (const bearing of bearings) {
       const excluded = new Set<string>([startNode.id]);
       const first = pickBestNodeNear(
@@ -86,10 +89,7 @@ export function generateLoopWaypointSets(
         excluded,
       );
 
-      if (!first) {
-        continue;
-      }
-
+      if (!first) continue;
       excluded.add(first.id);
 
       const second = pickBestNodeNear(
@@ -105,15 +105,40 @@ export function generateLoopWaypointSets(
           strategy: bearing % 90 === 0 ? "recommended" : "exploration",
         });
       }
+    }
+  }
+
+  for (const radiusM of [threeWpBaseRadiusM * 0.9, threeWpBaseRadiusM, threeWpBaseRadiusM * 1.1]) {
+    for (const bearing of bearings) {
+      const excluded = new Set<string>([startNode.id]);
+      const first = pickBestNodeNear(
+        graph,
+        destinationPoint(startNode.point, bearing, radiusM * 0.92),
+        preferences,
+        excluded,
+      );
+
+      if (!first) continue;
+      excluded.add(first.id);
+
+      const second = pickBestNodeNear(
+        graph,
+        destinationPoint(startNode.point, (bearing + 100) % 360, radiusM * 1.04),
+        preferences,
+        excluded,
+      );
+
+      if (!second) continue;
+      excluded.add(second.id);
 
       const third = pickBestNodeNear(
         graph,
         destinationPoint(startNode.point, (bearing + 185) % 360, radiusM * 0.82),
         preferences,
-        new Set([...excluded, second?.id ?? ""]),
+        excluded,
       );
 
-      if (second && third) {
+      if (third) {
         sets.push({
           nodeIds: [first.id, second.id, third.id],
           strategy: "park",
@@ -130,8 +155,9 @@ export function findOutAndBackDestinations(
   graph: RouteGraph,
   startNode: RouteNode,
 ) {
-  const targetOutboundM = (resolveTargetDistanceKm(preferences) * 1000) / 2;
-  const toleranceM = Math.max(400, targetOutboundM * 0.4);
+  // Divide by ~1.3 road-detour factor so the A* path lands near target/2 per leg.
+  const targetOutboundM = (resolveTargetDistanceKm(preferences) * 1000) / 2 / 1.3;
+  const toleranceM = Math.max(300, targetOutboundM * 0.2);
 
   const K = 12;
   const topK: Array<{ node: RouteNode; score: number }> = [];
