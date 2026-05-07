@@ -2,7 +2,7 @@ import type { ActivityType, LatLng, UserPreferences } from "@/types/route";
 import { haversineDistanceKm, round } from "@/lib/geoUtils";
 
 const EARTH_RADIUS_M = 6371000;
-const FALLBACK_TARGET_DISTANCE_KM = 8;
+const FALLBACK_TARGET_DISTANCE_KM = 5;
 
 export function toRadians(degrees: number) {
   return (degrees * Math.PI) / 180;

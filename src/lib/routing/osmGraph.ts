@@ -90,7 +90,7 @@ function graphRadiusKm(preferences: UserPreferences) {
   // Out-and-back needs nodes at road distance D/2 from start. Road distance ≥ straight-line,
   // so the graph (which uses straight-line bbox) must extend well past D/2 for the round trip.
   const activityMultiplier = preferences.activity === "cycling" ? 0.65 : 0.6;
-  const maxRadius = preferences.activity === "cycling" ? 14 : 10;
+  const maxRadius = preferences.activity === "cycling" ? 20 : 14;
 
   return clamp(targetDistanceKm * activityMultiplier + 1.0, 2.5, maxRadius);
 }

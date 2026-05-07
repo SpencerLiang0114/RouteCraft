@@ -16,8 +16,8 @@ import type { UserPreferences } from "@/types/route";
 
 const initialPreferences: UserPreferences = {
   activity: "running",
-  routeType: "loop",
-  targetDistanceKm: 8,
+  routeType: "out_and_back",
+  targetDistanceKm: 5,
   parkPreference: 3,
   shadePreference: 2,
   elevationPreference: 1,

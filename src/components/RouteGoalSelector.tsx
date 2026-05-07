@@ -8,8 +8,8 @@ type RouteGoal = Extract<RouteType, "point_to_point" | "loop">;
 type TargetMode = "distance" | "time";
 
 const routeGoals: Array<{ value: RouteGoal; label: string; icon: typeof Route }> = [
-  { value: "point_to_point", label: "Point-to-point", icon: Flag },
   { value: "loop", label: "Loop route", icon: RotateCw },
+  { value: "point_to_point", label: "Point-to-point", icon: Flag },
 ];
 
 const targetModes: Array<{ value: TargetMode; label: string; icon: typeof Route }> = [
@@ -18,14 +18,16 @@ const targetModes: Array<{ value: TargetMode; label: string; icon: typeof Route 
 ];
 
 const loopShapes: Array<{ value: Extract<RouteType, "loop" | "out_and_back">; label: string; icon: typeof Route }> = [
-  { value: "loop", label: "Loop", icon: RotateCw },
   { value: "out_and_back", label: "Out & back", icon: ArrowLeftRight },
+  { value: "loop", label: "Loop", icon: RotateCw },
 ];
 
 const distancePresetValues = [
   { label: "3 km", value: 3 },
   { label: "5 km", value: 5 },
   { label: "10 km", value: 10 },
+  { label: "21.1 km", value: 21.0975 },
+  { label: "42.2 km", value: 42.195 },
 ];
 
 const timePresetValues = [
@@ -63,9 +65,9 @@ export function RouteGoalSelector({
       routeType:
         nextGoal === "point_to_point"
           ? "point_to_point"
-          : preferences.routeType === "out_and_back"
-            ? "out_and_back"
-            : "loop",
+          : preferences.routeType === "loop"
+            ? "loop"
+            : "out_and_back",
     });
   }
 
@@ -73,7 +75,7 @@ export function RouteGoalSelector({
     if (nextMode === "distance") {
       onChange({
         ...preferences,
-        targetDistanceKm: preferences.targetDistanceKm ?? 8,
+        targetDistanceKm: preferences.targetDistanceKm ?? 5,
         targetDurationMin: undefined,
       });
       return;
@@ -168,7 +170,7 @@ export function RouteGoalSelector({
       <PresetRow
         label={presetLabel}
         values={targetMode === "distance" ? distancePresetValues : timePresetValues}
-        customValue={targetMode === "distance" ? preferences.targetDistanceKm ?? 8 : preferences.targetDurationMin ?? 75}
+        customValue={targetMode === "distance" ? preferences.targetDistanceKm ?? 5 : preferences.targetDurationMin ?? 75}
         selectedValue={targetMode === "distance" ? preferences.targetDistanceKm : preferences.targetDurationMin}
         suffix={targetMode === "distance" ? "km" : "min"}
         onSelect={(value) =>
@@ -213,7 +215,7 @@ function PresetRow({
   onCustom: (value: number) => void;
 }) {
   const isCustom = selectedValue !== undefined && !values.some((item) => item.value === selectedValue);
-  const defaultCustomValue = suffix === "km" ? 8 : 75;
+  const defaultCustomValue = suffix === "km" ? 5 : 75;
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-4">
@@ -249,7 +251,7 @@ function PresetRow({
           <input
             type="range"
             min={suffix === "km" ? 2 : 20}
-            max={suffix === "km" ? 40 : 180}
+            max={suffix === "km" ? 50 : 180}
             step={suffix === "km" ? 1 : 5}
             value={customValue}
             onChange={(event) => onCustom(Number(event.target.value))}
