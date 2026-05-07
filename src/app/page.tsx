@@ -69,9 +69,9 @@ export default function Home() {
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.7fr)] lg:px-8">
-        <figure className="overflow-hidden rounded-lg border border-stone-200 bg-white p-2 shadow-sm">
+        <figure className="overflow-hidden rounded-lg border border-stone-200 bg-background p-2 shadow-sm">
           <Image
-            src="/routecraft.png"
+            src="/routecraft2.png"
             alt="RouteCraft route recommendation demo with a map, elevation profile, and route score"
             width={1129}
             height={803}
