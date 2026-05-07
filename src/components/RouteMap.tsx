@@ -155,9 +155,9 @@ function addRouteMarkers(
   if (start && end && sameMapPoint(start, end)) {
     addCoincidentEndpointMarkers(L, markerLayer, [start.lat, start.lng]);
   } else if (start) {
-    addMarker(L, markerLayer, [start.lat, start.lng], "#064e3b", "Start");
+    addStartMarker(L, markerLayer, [start.lat, start.lng]);
     if (end) {
-      addMarker(L, markerLayer, [end.lat, end.lng], "#b45309", "End");
+      addFinishMarker(L, markerLayer, [end.lat, end.lng]);
     }
   }
 }
@@ -174,22 +174,16 @@ function addCoincidentEndpointMarkers(
   markerLayer: LayerGroup,
   point: LatLngExpression,
 ) {
-  const width = 116;
-  const height = 30;
+  const width = 52;
+  const height = 28;
   const icon = L.divIcon({
     className: "",
     iconSize: [width, height],
     iconAnchor: [width / 2, height / 2],
     html: `
-      <div style="display:flex;align-items:center;justify-content:center;gap:4px;width:${width}px;height:${height}px">
-        <span style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;background:rgb(255 255 255 / 0.96);color:#1c1917;box-shadow:0 10px 24px rgb(28 25 23 / 0.14);font:800 12px/1 var(--font-body), Trebuchet MS, sans-serif;padding:6px 7px;white-space:nowrap">
-          <span style="display:block;width:11px;height:11px;border:2px solid #fff;border-radius:999px;background:#064e3b;box-shadow:0 4px 10px rgb(28 25 23 / 0.18)"></span>
-          Start
-        </span>
-        <span style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;background:rgb(255 255 255 / 0.96);color:#1c1917;box-shadow:0 10px 24px rgb(28 25 23 / 0.14);font:800 12px/1 var(--font-body), Trebuchet MS, sans-serif;padding:6px 7px;white-space:nowrap">
-          <span style="display:block;width:11px;height:11px;border:2px solid #fff;border-radius:999px;background:#b45309;box-shadow:0 4px 10px rgb(28 25 23 / 0.18)"></span>
-          End
-        </span>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;width:${width}px;height:${height}px">
+        ${startDotHtml()}
+        ${finishPointHtml()}
       </div>
     `,
   });
@@ -197,27 +191,46 @@ function addCoincidentEndpointMarkers(
   L.marker(point, { icon, interactive: false }).addTo(markerLayer);
 }
 
-function addMarker(
+function startDotHtml() {
+  return endpointDotHtml("#064e3b", "6 78 59");
+}
+
+function finishPointHtml() {
+  return endpointDotHtml("#f97316", "249 115 22");
+}
+
+function endpointDotHtml(color: string, ringColor: string) {
+  return `
+    <span style="display:block;width:16px;height:16px;border:3px solid #fff;border-radius:999px;background:${color};box-shadow:0 8px 18px rgb(28 25 23 / 0.22),0 0 0 2px rgb(${ringColor} / 0.22)"></span>
+  `;
+}
+
+function addStartMarker(
   L: typeof import("leaflet"),
   markerLayer: LayerGroup,
   point: LatLngExpression,
-  color: string,
-  label: string,
 ) {
   L.circleMarker(point, {
     radius: 10,
     color: "#ffffff",
-    fillColor: color,
+    fillColor: "#064e3b",
     fillOpacity: 1,
     weight: 4,
-  })
-    .bindTooltip(label, {
-      permanent: true,
-      direction: "right",
-      offset: [12, 0],
-      className: "routecraft-map-tooltip",
-    })
-    .addTo(markerLayer);
+  }).addTo(markerLayer);
+}
+
+function addFinishMarker(
+  L: typeof import("leaflet"),
+  markerLayer: LayerGroup,
+  point: LatLngExpression,
+) {
+  L.circleMarker(point, {
+    radius: 10,
+    color: "#ffffff",
+    fillColor: "#f97316",
+    fillOpacity: 1,
+    weight: 4,
+  }).addTo(markerLayer);
 }
 
 function segmentBearing(
