@@ -461,6 +461,113 @@ async function fetchElevations(points: LatLng[]) {
   }
 }
 
+const ROUTE_ELEV_STEP_M = 10;
+const ROUTE_ELEV_MAX_POINTS = 800;
+
+function resampleGeometry(geometry: LatLng[], stepM: number, maxPoints: number): LatLng[] {
+  if (geometry.length < 2) return geometry.slice();
+  const result: LatLng[] = [geometry[0]];
+  let distSinceLastSample = 0;
+
+  for (let i = 1; i < geometry.length && result.length < maxPoints - 1; i++) {
+    const prev = geometry[i - 1];
+    const curr = geometry[i];
+    const segDistM = distanceM(prev, curr);
+    let posInSeg = 0;
+    let nextSampleDist = stepM - distSinceLastSample;
+
+    while (posInSeg + nextSampleDist <= segDistM && result.length < maxPoints - 1) {
+      posInSeg += nextSampleDist;
+      const t = posInSeg / segDistM;
+      result.push({
+        lat: prev.lat + t * (curr.lat - prev.lat),
+        lng: prev.lng + t * (curr.lng - prev.lng),
+      });
+      distSinceLastSample = 0;
+      nextSampleDist = stepM;
+    }
+
+    distSinceLastSample += segDistM - posInSeg;
+  }
+
+  const last = geometry[geometry.length - 1];
+  const tail = result[result.length - 1];
+  if (tail.lat !== last.lat || tail.lng !== last.lng) result.push(last);
+
+  return result;
+}
+
+// Gaussian-weighted moving average to remove DEM grid staircase artifacts.
+// sigma is in sample units; at 10 m/sample, sigma=4 → ~40 m smoothing radius.
+function smoothElevationProfile(
+  profile: Array<{ distanceKm: number; elevM: number }>,
+  sigma = 4,
+): Array<{ distanceKm: number; elevM: number }> {
+  if (profile.length <= 2) return profile;
+  const radius = Math.ceil(sigma * 3);
+  return profile.map((point, i) => {
+    let weightSum = 0;
+    let elevSum = 0;
+    for (let j = Math.max(0, i - radius); j <= Math.min(profile.length - 1, i + radius); j++) {
+      const w = Math.exp(-((j - i) ** 2) / (2 * sigma ** 2));
+      weightSum += w;
+      elevSum += w * profile[j].elevM;
+    }
+    return { distanceKm: point.distanceKm, elevM: Math.round((elevSum / weightSum) * 10) / 10 };
+  });
+}
+
+function computeElevationStats(profile: Array<{ distanceKm: number; elevM: number }>) {
+  const elevs = profile.map((p) => p.elevM);
+  const lowestElevM = Math.min(...elevs);
+  const highestElevM = Math.max(...elevs);
+  const elevationGainM = Math.round(
+    profile.reduce((sum, p, i) => sum + (i === 0 ? 0 : Math.max(p.elevM - profile[i - 1].elevM, 0)), 0),
+  );
+  const totalDescentM = Math.round(
+    profile.reduce((sum, p, i) => sum + (i === 0 ? 0 : Math.max(profile[i - 1].elevM - p.elevM, 0)), 0),
+  );
+  return {
+    elevationGainM,
+    totalDescentM,
+    lowestElevM: Math.round(lowestElevM),
+    highestElevM: Math.round(highestElevM),
+    elevDifferenceM: Math.round(highestElevM - lowestElevM),
+  };
+}
+
+export async function fetchRouteElevationProfile(geometry: LatLng[]): Promise<{
+  profile: Array<{ distanceKm: number; elevM: number }>;
+  elevationGainM: number;
+  totalDescentM: number;
+  lowestElevM: number;
+  highestElevM: number;
+  elevDifferenceM: number;
+} | null> {
+  if (geometry.length < 2) return null;
+  const sampled = resampleGeometry(geometry, ROUTE_ELEV_STEP_M, ROUTE_ELEV_MAX_POINTS);
+  const elevations = await fetchElevations(sampled);
+
+  let accDistM = 0;
+  const profile: Array<{ distanceKm: number; elevM: number }> = [];
+  let lastKnownElevM: number | undefined;
+
+  for (let i = 0; i < sampled.length; i++) {
+    if (i > 0) accDistM += distanceM(sampled[i - 1], sampled[i]);
+    const elevM = elevations.get(nodeKey(sampled[i]));
+    if (typeof elevM === "number") {
+      lastKnownElevM = elevM;
+    }
+    if (lastKnownElevM !== undefined) {
+      profile.push({ distanceKm: Math.round(accDistM / 10) / 100, elevM: Math.round(lastKnownElevM) });
+    }
+  }
+
+  if (profile.length < 2) return null;
+  const smoothed = smoothElevationProfile(profile);
+  return { profile: smoothed, ...computeElevationStats(smoothed) };
+}
+
 function applyElevationsToEdges(edges: RouteEdge[], elevations: Map<string, number>) {
   if (elevations.size === 0) {
     return edges;

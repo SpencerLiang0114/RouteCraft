@@ -101,6 +101,7 @@ export function RouteMap({
           lineCap: "round",
           lineJoin: "round",
         }).addTo(routeLayer);
+        addDirectionArrows(leaflet, routeLayer, selectedRoute.geometry);
       }
     }
 
@@ -191,6 +192,55 @@ function addMarker(
       className: "routecraft-map-tooltip",
     })
     .addTo(markerLayer);
+}
+
+function segmentBearing(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): number {
+  const dLng = ((to.lng - from.lng) * Math.PI) / 180;
+  const lat1 = (from.lat * Math.PI) / 180;
+  const lat2 = (to.lat * Math.PI) / 180;
+  const x = Math.sin(dLng) * Math.cos(lat2);
+  const y = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(x, y) * 180) / Math.PI + 360) % 360;
+}
+
+function addDirectionArrows(
+  L: typeof import("leaflet"),
+  layer: LayerGroup,
+  geometry: Array<{ lat: number; lng: number }>,
+  intervalM = 1500,
+) {
+  if (geometry.length < 2) return;
+
+  let accDistM = 0;
+  let nextArrowAt = intervalM / 2;
+
+  for (let i = 1; i < geometry.length; i++) {
+    const prev = geometry[i - 1];
+    const curr = geometry[i];
+    const segDistM = L.latLng(prev.lat, prev.lng).distanceTo(L.latLng(curr.lat, curr.lng));
+
+    while (accDistM + segDistM >= nextArrowAt) {
+      const t = (nextArrowAt - accDistM) / segDistM;
+      const lat = prev.lat + t * (curr.lat - prev.lat);
+      const lng = prev.lng + t * (curr.lng - prev.lng);
+      const deg = Math.round(segmentBearing(prev, curr));
+
+      const icon = L.divIcon({
+        html: `<div style="transform:rotate(${deg}deg);display:flex;align-items:center;justify-content:center;width:14px;height:14px"><svg viewBox="0 0 10 13" width="10" height="13" xmlns="http://www.w3.org/2000/svg"><polyline points="1,10 5,2 9,10" stroke="white" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`,
+        className: "",
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      });
+
+      L.marker([lat, lng], { icon, interactive: false }).addTo(layer);
+      nextArrowAt += intervalM;
+    }
+
+    accDistM += segDistM;
+  }
 }
 
 function getRouteBounds(route?: RouteCandidate): LatLngBoundsExpression | undefined {

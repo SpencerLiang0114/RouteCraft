@@ -12,7 +12,7 @@ import { generateLoopRoutes } from "@/lib/routing/loopGenerator";
 import { generateOutAndBackRoutes } from "@/lib/routing/outAndBackGenerator";
 import { generatePointToPointRoutes } from "@/lib/routing/pointToPointGenerator";
 import { loadMockGraphNear } from "@/lib/routing/mockGraph";
-import { loadOsmGraphNear } from "@/lib/routing/osmGraph";
+import { fetchRouteElevationProfile, loadOsmGraphNear } from "@/lib/routing/osmGraph";
 import type { RouteGraph } from "@/lib/routing/graph";
 import { resolveTargetDistanceKm } from "@/lib/routing/geoUtils";
 
@@ -98,6 +98,33 @@ function selectTopRoutes(
   return applyGeneratedRouteLabels(selected).slice(0, 3).map(stripInternalFields);
 }
 
+async function enrichRoutesWithElevation(routes: RouteCandidate[]): Promise<RouteCandidate[]> {
+  return Promise.all(
+    routes.map(async (route) => {
+      try {
+        const elevData = await fetchRouteElevationProfile(route.geometry);
+        if (!elevData) return route;
+        const averageSlopePct =
+          route.distanceKm > 0
+            ? Math.round((elevData.elevationGainM / (route.distanceKm * 1000)) * 1000) / 10
+            : route.averageSlopePct;
+        return {
+          ...route,
+          elevationProfile: elevData.profile,
+          elevationGainM: elevData.elevationGainM,
+          totalDescentM: elevData.totalDescentM,
+          lowestElevM: elevData.lowestElevM,
+          highestElevM: elevData.highestElevM,
+          elevDifferenceM: elevData.elevDifferenceM,
+          averageSlopePct,
+        };
+      } catch {
+        return route;
+      }
+    }),
+  );
+}
+
 export async function generateRoutes(preferences: UserPreferences): Promise<RouteCandidate[]> {
   const startPoint = preferences.startPoint ?? fallbackStart;
 
@@ -106,7 +133,7 @@ export async function generateRoutes(preferences: UserPreferences): Promise<Rout
     const routes = selectTopRoutes(preferences, generateRouteCandidatesInternal(preferences, graph));
 
     if (routes.length >= 3) {
-      return routes;
+      return enrichRoutesWithElevation(routes);
     }
   } catch (error) {
     console.warn("Falling back to mock routing graph.", error);

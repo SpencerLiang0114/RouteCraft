@@ -48,12 +48,24 @@ export function ElevationChart({ profile }: { profile: ElevationPoint[] }) {
     Math.round(i * xStep * 10) / 10,
   );
 
-  const areaPath = [
-    `M ${x(0)} ${y(minElev)}`,
-    ...profile.map((p) => `L ${x(p.distanceKm)} ${y(p.elevM)}`),
-    `L ${x(maxDist)} ${y(minElev)}`,
-    "Z",
-  ].join(" ");
+  // Build a smooth cubic bezier path: control points sit at the horizontal midpoint
+  // between adjacent profile points, producing S-shaped transitions with no kinks.
+  function smoothLinePath(pts: ElevationPoint[]): string {
+    if (pts.length < 2) return "";
+    let d = `M ${x(pts[0].distanceKm)} ${y(pts[0].elevM)}`;
+    for (let i = 1; i < pts.length; i++) {
+      const x0 = x(pts[i - 1].distanceKm);
+      const y0 = y(pts[i - 1].elevM);
+      const x1 = x(pts[i].distanceKm);
+      const y1 = y(pts[i].elevM);
+      const mx = (x0 + x1) / 2;
+      d += ` C ${mx} ${y0} ${mx} ${y1} ${x1} ${y1}`;
+    }
+    return d;
+  }
+
+  const linePath = smoothLinePath(profile);
+  const areaPath = `${linePath} L ${x(maxDist)} ${y(minElev)} L ${x(0)} ${y(minElev)} Z`;
 
   return (
     <div className="mt-4 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
