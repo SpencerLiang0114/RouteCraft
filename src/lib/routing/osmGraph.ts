@@ -87,10 +87,12 @@ function bboxString(bbox: BBox) {
 
 function graphRadiusKm(preferences: UserPreferences) {
   const targetDistanceKm = resolveTargetDistanceKm(preferences);
-  const activityMultiplier = preferences.activity === "cycling" ? 0.58 : 0.42;
-  const maxRadius = preferences.activity === "cycling" ? 12 : 7;
+  // Out-and-back needs nodes at road distance D/2 from start. Road distance ≥ straight-line,
+  // so the graph (which uses straight-line bbox) must extend well past D/2 for the round trip.
+  const activityMultiplier = preferences.activity === "cycling" ? 0.65 : 0.6;
+  const maxRadius = preferences.activity === "cycling" ? 14 : 10;
 
-  return clamp(targetDistanceKm * activityMultiplier + 0.7, 2.2, maxRadius);
+  return clamp(targetDistanceKm * activityMultiplier + 1.0, 2.5, maxRadius);
 }
 
 function buildOverpassQuery(bbox: BBox) {
@@ -881,7 +883,7 @@ function trimToLocalGraph(
   preferences: UserPreferences,
 ) {
   const radiusM = graphRadiusKm(preferences) * 1000;
-  const maxEdges = preferences.activity === "cycling" ? 10000 : 6500;
+  const maxEdges = preferences.activity === "cycling" ? 14000 : 10000;
   const localEdges = edges
     .filter((edge) => distanceM(startPoint, midpoint(edge.geometry[0], edge.geometry[edge.geometry.length - 1])) <= radiusM)
     .sort((a, b) => {

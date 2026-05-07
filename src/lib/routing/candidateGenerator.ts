@@ -1,6 +1,6 @@
 import type { LatLng, RouteCandidate, UserPreferences } from "@/types/route";
 import type { RouteGraph, RouteNode } from "./graph";
-import { findNearestNode } from "./graph";
+import { findNearestNode, singleSourceShortestDistances } from "./graph";
 import type { GeneratedRouteCandidate } from "./routeAnalyzer";
 import {
   angularDifference,
@@ -158,37 +158,68 @@ export function findOutAndBackDestinations(
   graph: RouteGraph,
   startNode: RouteNode,
 ) {
-  // Divide by ~1.3 road-detour factor so the A* path lands near target/2 per leg.
-  const targetOutboundM = (resolveTargetDistanceKm(preferences) * 1000) / 2 / 1.3;
-  const toleranceM = Math.max(300, targetOutboundM * 0.2);
+  // The user's target distance is for the round trip; each outbound leg should be half.
+  // Use ACTUAL road distances (single-source Dijkstra) — straight-line approximations
+  // are too imprecise to consistently land within ±500m of target.
+  const targetOutboundM = (resolveTargetDistanceKm(preferences) * 1000) / 2;
+  const roadDistances = singleSourceShortestDistances(graph, startNode.id);
 
-  const K = 12;
-  const topK: Array<{ node: RouteNode; score: number }> = [];
+  // Hard cap at ±25% of target/2: total round trip stays within ±25% of target.
+  // The downstream filter (±500m) does the final cut; this just bounds the search pool.
+  const HARD_CAP_M = Math.max(400, targetOutboundM * 0.25);
 
-  for (const node of Object.values(graph.nodes)) {
-    if (node.id === startNode.id) continue;
-    const radialDistance = distanceM(startNode.point, node.point);
+  const candidates: Array<{ node: RouteNode; score: number; distanceErrorM: number }> = [];
+
+  for (const [nodeId, roadDistanceM] of roadDistances) {
+    if (nodeId === startNode.id) continue;
+    const node = graph.nodes[nodeId];
+    if (!node) continue;
+    // Avoid dead-end destinations — they create the spike artifacts and confuse runners.
+    if ((graph.adjacency[nodeId]?.length ?? 0) < 2) continue;
+
+    const distanceErrorM = Math.abs(roadDistanceM - targetOutboundM);
+    if (distanceErrorM > HARD_CAP_M) continue;
+
     const bearing = bearingDegrees(startNode.point, node.point);
-    const distanceScore = 1 - Math.min(1, Math.abs(radialDistance - targetOutboundM) / toleranceM);
-    const quality = routeQualityNearNode(graph, node.id, preferences);
+    const distanceScore = 1 - distanceErrorM / HARD_CAP_M;
+    const quality = routeQualityNearNode(graph, nodeId, preferences);
     const explorationBias =
       normalizePreference(preferences.explorationPreference) * angularDifference(bearing, 45) * -0.004;
     const score = distanceScore * 3 + quality + explorationBias;
 
-    if (score <= 0.5) continue;
+    candidates.push({ node, score, distanceErrorM });
+  }
 
-    topK.push({ node, score });
-
-    if (topK.length > K) {
-      let minIdx = 0;
-      for (let i = 1; i < topK.length; i++) {
-        if (topK[i].score < topK[minIdx].score) minIdx = i;
-      }
-      topK.splice(minIdx, 1);
+  // If too few destinations land within the strict cap, broaden it once so the
+  // user always gets results — distance-filtered downstream selection sorts the rest.
+  if (candidates.length < 5) {
+    const RELAXED_CAP_M = Math.max(800, targetOutboundM * 0.5);
+    for (const [nodeId, roadDistanceM] of roadDistances) {
+      if (nodeId === startNode.id) continue;
+      const node = graph.nodes[nodeId];
+      if (!node) continue;
+      if ((graph.adjacency[nodeId]?.length ?? 0) < 2) continue;
+      const distanceErrorM = Math.abs(roadDistanceM - targetOutboundM);
+      if (distanceErrorM <= HARD_CAP_M || distanceErrorM > RELAXED_CAP_M) continue;
+      const bearing = bearingDegrees(startNode.point, node.point);
+      const distanceScore = 1 - distanceErrorM / RELAXED_CAP_M;
+      const quality = routeQualityNearNode(graph, nodeId, preferences);
+      const explorationBias =
+        normalizePreference(preferences.explorationPreference) * angularDifference(bearing, 45) * -0.004;
+      const score = distanceScore * 3 + quality + explorationBias;
+      candidates.push({ node, score, distanceErrorM });
     }
   }
 
-  return topK.sort((a, b) => b.score - a.score).map((item) => item.node);
+  candidates.sort((a, b) => {
+    // Sort primarily by distance accuracy, breaking ties (within 150m) by score.
+    if (Math.abs(a.distanceErrorM - b.distanceErrorM) < 150) {
+      return b.score - a.score;
+    }
+    return a.distanceErrorM - b.distanceErrorM;
+  });
+
+  return candidates.slice(0, 30).map((item) => item.node);
 }
 
 export function filterByDistance<T extends RouteCandidate>(

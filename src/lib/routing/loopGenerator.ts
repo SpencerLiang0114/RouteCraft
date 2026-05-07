@@ -10,10 +10,15 @@ import {
 import { generateLoopWaypointSets, getStartNode } from "./candidateGenerator";
 import { buildRouteCandidate, type GeneratedRouteCandidate } from "./routeAnalyzer";
 
-const PREVIOUS_EDGE_PENALTY = 0.8;
-const CLOSING_SEGMENT_EXTRA_PENALTY = 0.5;
-const STRICT_OVERLAP_LIMIT = 0.3;
-const LOOSE_OVERLAP_LIMIT = 0.6;
+// Heavy penalties on revisiting edges: a loop should ideally use entirely
+// different roads on the way back. ×2.5 cost makes A* avoid retracing unless
+// the road geometry leaves no alternative.
+const PREVIOUS_EDGE_PENALTY = 1.5;
+const CLOSING_SEGMENT_EXTRA_PENALTY = 1.0;
+// Overlap thresholds: 15% strict (≈1.5 km on a 10 km loop) is the upper bound
+// of what reads as "a true loop" rather than a near-out-and-back.
+const STRICT_OVERLAP_LIMIT = 0.15;
+const LOOSE_OVERLAP_LIMIT = 0.35;
 
 export function generateLoopRoutes(preferences: UserPreferences, graph: RouteGraph) {
   const startNode = getStartNode(graph, preferences);

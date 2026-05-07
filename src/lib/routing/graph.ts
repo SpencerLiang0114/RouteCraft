@@ -495,6 +495,36 @@ export function despikePath(graph: RouteGraph, path: PathResult): PathResult {
   return pathFromEdges(graph, newNodeIds, stack, newCost);
 }
 
+// Single-source shortest path distances by raw road distance (not preference-weighted cost).
+// Used to pick destinations whose actual A* path length matches a target.
+export function singleSourceShortestDistances(
+  graph: RouteGraph,
+  startId: string,
+): Map<string, number> {
+  const queue = new MinHeap();
+  queue.push({ nodeId: startId, priority: 0 });
+  const distances = new Map<string, number>([[startId, 0]]);
+  const settled = new Set<string>();
+
+  while (queue.size > 0) {
+    const current = queue.pop();
+    if (!current || settled.has(current.nodeId)) continue;
+    settled.add(current.nodeId);
+
+    for (const edge of graph.adjacency[current.nodeId] ?? []) {
+      if (!edge.accessAllowed) continue;
+      const nextDist = (distances.get(current.nodeId) ?? 0) + edge.distanceM;
+      const known = distances.get(edge.to);
+      if (known === undefined || nextDist < known) {
+        distances.set(edge.to, nextDist);
+        queue.push({ nodeId: edge.to, priority: nextDist });
+      }
+    }
+  }
+
+  return distances;
+}
+
 export function pathSelfOverlapRatio(path: PathResult): number {
   if (path.edges.length === 0 || path.distanceM <= 0) {
     return 0;
