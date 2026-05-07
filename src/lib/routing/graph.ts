@@ -467,6 +467,34 @@ export function reversePath(path: PathResult): PathResult {
   };
 }
 
+export function despikePath(graph: RouteGraph, path: PathResult): PathResult {
+  if (path.edges.length === 0) return path;
+
+  const stack: RouteEdge[] = [];
+  for (const edge of path.edges) {
+    const top = stack[stack.length - 1];
+    if (top && top.from === edge.to && top.to === edge.from) {
+      stack.pop();
+    } else {
+      stack.push(edge);
+    }
+  }
+
+  if (stack.length === path.edges.length) return path;
+
+  const startNodeId = path.nodeIds[0];
+
+  if (stack.length === 0) {
+    return pathFromEdges(graph, [startNodeId], [], 0);
+  }
+
+  const newNodeIds = [stack[0].from, ...stack.map((edge) => edge.to)];
+  const newDistanceM = stack.reduce((total, edge) => total + edge.distanceM, 0);
+  const newCost = path.distanceM > 0 ? path.cost * (newDistanceM / path.distanceM) : 0;
+
+  return pathFromEdges(graph, newNodeIds, stack, newCost);
+}
+
 export function pathSelfOverlapRatio(path: PathResult): number {
   if (path.edges.length === 0 || path.distanceM <= 0) {
     return 0;

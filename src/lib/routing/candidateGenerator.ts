@@ -58,6 +58,9 @@ function pickBestNodeNear(
 
   for (const node of Object.values(graph.nodes)) {
     if (excludedNodeIds.has(node.id)) continue;
+    // Dead-end nodes (degree 1) cause spike artifacts where the loop enters a
+    // side road and immediately backtracks. Restrict waypoints to through-nodes.
+    if ((graph.adjacency[node.id]?.length ?? 0) < 2) continue;
     const score = routeQualityNearNode(graph, node.id, preferences) * 1000 - distanceM(point, node.point);
     if (!best || score > best.score) best = { node, score };
   }

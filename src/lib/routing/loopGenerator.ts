@@ -1,6 +1,12 @@
 import type { UserPreferences } from "@/types/route";
 import type { PathResult, RouteGraph } from "./graph";
-import { combinePaths, findShortestPath, getEdgeKey, pathSelfOverlapRatio } from "./graph";
+import {
+  combinePaths,
+  despikePath,
+  findShortestPath,
+  getEdgeKey,
+  pathSelfOverlapRatio,
+} from "./graph";
 import { generateLoopWaypointSets, getStartNode } from "./candidateGenerator";
 import { buildRouteCandidate, type GeneratedRouteCandidate } from "./routeAnalyzer";
 
@@ -48,7 +54,11 @@ export function generateLoopRoutes(preferences: UserPreferences, graph: RouteGra
 
     if (failed) continue;
 
-    const path = combinePaths(graph, segments);
+    const combined = combinePaths(graph, segments);
+    const path = despikePath(graph, combined);
+
+    if (path.edges.length === 0) continue;
+
     const overlapRatio = pathSelfOverlapRatio(path);
 
     const candidate = buildRouteCandidate(
