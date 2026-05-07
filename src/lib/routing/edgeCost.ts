@@ -1,6 +1,6 @@
 import type { UserPreferences } from "@/types/route";
 import type { RouteEdge } from "./graph";
-import { isAfternoonDeparture, isNightDeparture, normalizePreference } from "./geoUtils";
+import { isAfternoonDeparture, isNightDeparture, normalizePreference, wantsClimbing } from "./geoUtils";
 
 const SURFACE_PENALTIES: Record<string, number> = {
   gravel: 0.08,
@@ -20,10 +20,6 @@ const ROAD_PENALTIES: Record<string, number> = {
   trail: -0.14,
   bike_path: -0.24,
 };
-
-function wantsClimbing(preferences: UserPreferences) {
-  return preferences.routeStyle === "climbing";
-}
 
 export function computeEdgeCost(edge: RouteEdge, preferences: UserPreferences) {
   if (!edge.accessAllowed) {

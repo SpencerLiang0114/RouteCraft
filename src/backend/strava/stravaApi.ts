@@ -261,6 +261,8 @@ function segmentSignals(segment: StravaExplorerSegment): RouteAnalysisSignals {
   const climbPenalty = Math.min(28, Math.abs(segment.avg_grade) * 3 + segment.climb_category * 5);
   const sceneryBoost = Math.min(20, segment.climb_category * 4 + Math.abs(segment.avg_grade) * 1.5);
 
+  // Baseline priors for Strava segments: typically road/trail with moderate infrastructure.
+  // Strava segments carry no park/shade/road metadata, so these are empirically chosen midpoints.
   return {
     parkAccess: 54,
     shadeCover: 44,

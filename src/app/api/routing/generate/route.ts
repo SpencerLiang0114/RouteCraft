@@ -15,15 +15,38 @@ export async function POST(request: Request) {
       );
     }
 
+    const { lat, lng } = preferences.startPoint ?? {};
+    if (
+      lat == null || lng == null ||
+      !Number.isFinite(lat) || lat < -90 || lat > 90 ||
+      !Number.isFinite(lng) || lng < -180 || lng > 180
+    ) {
+      return NextResponse.json(
+        { routes: [], message: "Invalid or missing start coordinates." },
+        { status: 400 },
+      );
+    }
+
+    if (preferences.endPoint != null) {
+      const { lat: eLat, lng: eLng } = preferences.endPoint;
+      if (
+        !Number.isFinite(eLat) || eLat < -90 || eLat > 90 ||
+        !Number.isFinite(eLng) || eLng < -180 || eLng > 180
+      ) {
+        return NextResponse.json(
+          { routes: [], message: "Invalid end coordinates." },
+          { status: 400 },
+        );
+      }
+    }
+
     const routes = await generateRoutes(preferences);
 
     return NextResponse.json({ routes });
   } catch (error) {
+    console.error("Route generation error:", error);
     return NextResponse.json(
-      {
-        routes: [],
-        message: error instanceof Error ? error.message : "Could not generate routes.",
-      },
+      { routes: [], message: "Could not generate routes." },
       { status: 500 },
     );
   }

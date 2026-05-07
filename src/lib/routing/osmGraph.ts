@@ -1,4 +1,5 @@
 import type { LatLng, UserPreferences } from "@/types/route";
+import { clamp } from "@/lib/geoUtils";
 import type { RouteEdge, RouteNode } from "./graph";
 import { createBidirectionalEdges, createGraph, type RouteGraph } from "./graph";
 import {
@@ -14,6 +15,32 @@ const OVERPASS_ENDPOINTS = [
 const ELEVATION_ENDPOINT = "https://api.open-meteo.com/v1/elevation";
 const OPEN_ELEVATION_ENDPOINT = "https://api.open-elevation.com/api/v1/lookup";
 const MAX_ELEVATION_POINTS = 800;
+const OSM_ELEMENTS_CACHE_TTL_MS = 10 * 60 * 1000;
+const OSM_ELEMENTS_CACHE_MAX_ENTRIES = 30;
+
+const osmElementsCache = new Map<string, { expiresAt: number; elements: OsmElement[] }>();
+
+function getCachedOsmElements(bboxStr: string): OsmElement[] | null {
+  const cached = osmElementsCache.get(bboxStr);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    osmElementsCache.delete(bboxStr);
+    return null;
+  }
+  return cached.elements;
+}
+
+function setCachedOsmElements(bboxStr: string, elements: OsmElement[]) {
+  for (const [key, value] of osmElementsCache) {
+    if (value.expiresAt <= Date.now()) osmElementsCache.delete(key);
+  }
+  while (osmElementsCache.size >= OSM_ELEMENTS_CACHE_MAX_ENTRIES) {
+    const oldestKey = osmElementsCache.keys().next().value;
+    if (!oldestKey) break;
+    osmElementsCache.delete(oldestKey);
+  }
+  osmElementsCache.set(bboxStr, { expiresAt: Date.now() + OSM_ELEMENTS_CACHE_TTL_MS, elements });
+}
 
 type OsmTags = Record<string, string | undefined>;
 
@@ -40,10 +67,6 @@ interface BBox {
   west: number;
   north: number;
   east: number;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
 }
 
 function bboxAround(point: LatLng, radiusKm: number): BBox {
@@ -1016,7 +1039,12 @@ function addAnchorNode(
 
 export async function loadOsmGraphNear(startPoint: LatLng, preferences: UserPreferences): Promise<RouteGraph> {
   const bbox = bboxAround(startPoint, graphRadiusKm(preferences));
-  const elements = await fetchOverpassElements(bbox);
+  const bboxStr = bboxString(bbox);
+  const cached = getCachedOsmElements(bboxStr);
+  const elements: OsmElement[] = cached ?? await fetchOverpassElements(bbox).then((els) => {
+    setCachedOsmElements(bboxStr, els);
+    return els;
+  });
   const greenFeatures = getGreenFeatures(elements);
   const rawGraph = createEdges(elements, greenFeatures, new Map(), preferences);
   const trimmedGraph = trimToLocalGraph(startPoint, rawGraph.nodes, rawGraph.edges, preferences);

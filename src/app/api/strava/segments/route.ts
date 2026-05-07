@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { exploreStravaSegments, type StravaExploreActivity } from "@/backend/strava/stravaApi";
-import { haversineDistanceKm } from "@/lib/geoUtils";
+import { clamp, haversineDistanceKm } from "@/lib/geoUtils";
 import type { ExternalRouteMock, LatLng } from "@/types/route";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,13 @@ export async function GET(request: Request) {
   if (Number.isNaN(lat) || Number.isNaN(lng)) {
     return NextResponse.json(
       { source: "mock", segments: [], message: "lat and lng are required." },
+      { status: 400 },
+    );
+  }
+
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return NextResponse.json(
+      { source: "mock", segments: [], message: "Coordinates out of range." },
       { status: 400 },
     );
   }
@@ -181,6 +188,3 @@ function uniqueRadii(radii: number[]) {
   );
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}

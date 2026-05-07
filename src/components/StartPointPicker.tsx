@@ -13,6 +13,7 @@ import type {
   LayerGroup,
   Map as LeafletMap,
 } from "leaflet";
+import { formatLatLng } from "@/lib/geoUtils";
 import type { LatLng } from "@/types/route";
 
 type StartMode = "current" | "search" | "map" | "saved";
@@ -42,11 +43,7 @@ function samePoint(a?: LatLng, b?: LatLng) {
 }
 
 function formatCoordinate(point?: LatLng) {
-  if (!point) {
-    return "No start selected";
-  }
-
-  return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+  return point ? formatLatLng(point) : "No start selected";
 }
 
 export function StartPointPicker({

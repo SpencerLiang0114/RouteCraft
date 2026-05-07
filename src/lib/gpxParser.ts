@@ -1,6 +1,6 @@
 import type { RouteCandidate } from "@/types/route";
 import { analyzeRoute } from "./routeAnalyzer";
-import { calculateRouteDistanceKm, slugify } from "./geoUtils";
+import { buildElevationProfile, calculateRouteDistanceKm, slugify } from "./geoUtils";
 
 export function parseGpxRoute(xml: string, fallbackName: string): RouteCandidate {
   const document = new DOMParser().parseFromString(xml, "application/xml");
@@ -30,23 +30,9 @@ export function parseGpxRoute(xml: string, fallbackName: string): RouteCandidate
   const geometry = points.map(({ lat, lng }) => ({ lat, lng }));
   const distanceKm = calculateRouteDistanceKm(geometry);
 
-  let elevationProfile: { distanceKm: number; elevM: number }[] | undefined;
-  if (hasElevation) {
-    let accDistM = 0;
-    elevationProfile = points.map((point, index) => {
-      if (index > 0) {
-        const prev = geometry[index - 1];
-        const curr = geometry[index];
-        const dLat = (curr.lat - prev.lat) * (Math.PI / 180);
-        const dLng = (curr.lng - prev.lng) * (Math.PI / 180);
-        const a =
-          Math.sin(dLat / 2) ** 2 +
-          Math.cos(prev.lat * (Math.PI / 180)) * Math.cos(curr.lat * (Math.PI / 180)) * Math.sin(dLng / 2) ** 2;
-        accDistM += 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      }
-      return { distanceKm: Math.round(accDistM / 10) / 100, elevM: Math.round(point.elevation) };
-    });
-  }
+  const elevationProfile = hasElevation
+    ? buildElevationProfile(geometry, points.map((p) => p.elevation))
+    : undefined;
 
   return analyzeRoute({
     id: `uploaded-${slugify(name ?? fallbackName)}`,

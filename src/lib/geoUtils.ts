@@ -75,6 +75,23 @@ export function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
+export function formatLatLng(point: LatLng) {
+  return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+}
+
+export function buildElevationProfile(
+  geometry: LatLng[],
+  elevations: number[],
+): { distanceKm: number; elevM: number }[] {
+  let accDistM = 0;
+  return geometry.map((_, index) => {
+    if (index > 0) {
+      accDistM += haversineDistanceKm(geometry[index - 1], geometry[index]) * 1000;
+    }
+    return { distanceKm: Math.round(accDistM / 10) / 100, elevM: Math.round(elevations[index]) };
+  });
+}
+
 export function getRouteBounds(routes: LatLng[][]) {
   const points = routes.flat();
 

@@ -17,6 +17,7 @@ import {
   isNightDeparture,
   normalizePreference,
   resolveTargetDistanceKm,
+  wantsClimbing,
   weightedAverage,
 } from "./geoUtils";
 import { scoreRoute } from "./routeScoring";
@@ -168,10 +169,6 @@ function edgeAverage(edges: RouteEdge[], selector: (edge: RouteEdge) => number) 
 function scoreDistance(distanceKm: number, targetDistanceKm: number) {
   const missRatio = Math.abs(distanceKm - targetDistanceKm) / Math.max(targetDistanceKm, 0.1);
   return clampScore(100 - missRatio * 160);
-}
-
-function wantsClimbing(preferences: UserPreferences) {
-  return preferences.routeStyle === "climbing";
 }
 
 function scoreElevation(

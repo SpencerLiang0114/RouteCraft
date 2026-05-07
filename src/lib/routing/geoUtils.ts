@@ -144,3 +144,7 @@ export function undirectedEdgeKey(from: string, to: string) {
 export function routeTypeLabel(value: string) {
   return value.replaceAll("_", " ");
 }
+
+export function wantsClimbing(preferences: UserPreferences) {
+  return preferences.routeStyle === "climbing";
+}

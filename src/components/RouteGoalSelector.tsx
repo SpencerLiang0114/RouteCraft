@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowLeftRight, Clock, Flag, Loader2, MapPin, MousePointer2, RotateCw, Route, Search } from "lucide-react";
 import type { LayerGroup, Map as LeafletMap } from "leaflet";
+import { formatLatLng } from "@/lib/geoUtils";
 import type { LatLng, RouteType, UserPreferences } from "@/types/route";
 
 type RouteGoal = Extract<RouteType, "point_to_point" | "loop">;
@@ -42,8 +43,7 @@ interface GeocodeResult {
 }
 
 function formatCoordinate(point?: LatLng) {
-  if (!point) return "Not set";
-  return `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+  return point ? formatLatLng(point) : "Not set";
 }
 
 export function RouteGoalSelector({
