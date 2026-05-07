@@ -22,7 +22,7 @@ export function SavedRoutesClient() {
         <section className="rounded-lg border border-stone-200 bg-white p-8 text-center shadow-sm">
           <h2 className="text-2xl font-semibold text-stone-950">No saved routes yet</h2>
           <p className="mx-auto mt-3 max-w-xl leading-7 text-stone-600">
-            Save a generated, Strava, AllTrails, or uploaded route from the results page.
+            Save a generated, Strava, or uploaded route from the results page.
           </p>
           <Link
             href="/route-source"

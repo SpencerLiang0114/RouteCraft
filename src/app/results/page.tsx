@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { RouteResultsClient } from "@/components/RouteResultsClient";
 
 export default function ResultsPage() {
-  return <RouteResultsClient />;
+  return (
+    <Suspense>
+      <RouteResultsClient />
+    </Suspense>
+  );
 }

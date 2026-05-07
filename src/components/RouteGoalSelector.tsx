@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Clock, Flag, Loader2, MapPin, MousePointer2, RotateCw, Route, Search } from "lucide-react";
+import { ArrowLeftRight, Clock, Flag, Loader2, MapPin, MousePointer2, RotateCw, Route, Search } from "lucide-react";
 import type { LayerGroup, Map as LeafletMap } from "leaflet";
 import type { LatLng, RouteGoalMode, UserPreferences } from "@/types/route";
 
@@ -8,6 +8,7 @@ const goals: Array<{ value: RouteGoalMode; label: string; icon: typeof Route }> 
   { value: "time", label: "By time", icon: Clock },
   { value: "point_to_point", label: "Point-to-point", icon: Flag },
   { value: "loop", label: "Loop route", icon: RotateCw },
+  { value: "out_and_back", label: "Out & back", icon: ArrowLeftRight },
 ];
 
 const defaultMapCenter: LatLng = { lat: 40.0149, lng: -105.2705 };
@@ -52,7 +53,9 @@ export function RouteGoalSelector({
                       ? "point_to_point"
                       : goal.value === "loop"
                         ? "loop"
-                        : preferences.routeType,
+                        : goal.value === "out_and_back"
+                          ? "out_and_back"
+                          : preferences.routeType,
                 })
               }
               className={`min-h-32 rounded-lg border p-4 text-left ${
@@ -111,6 +114,26 @@ export function RouteGoalSelector({
       {goalMode === "loop" && (
         <PresetRow
           label="Loop distance presets"
+          values={[
+            { label: "3 km", value: 3 },
+            { label: "5 km", value: 5 },
+            { label: "10 km", value: 10 },
+          ]}
+          customValue={preferences.targetDistanceKm ?? 8}
+          selectedValue={preferences.targetDistanceKm}
+          suffix="km"
+          onSelect={(value) =>
+            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
+          }
+          onCustom={(value) =>
+            onChange({ ...preferences, targetDistanceKm: value, targetDurationMin: undefined })
+          }
+        />
+      )}
+
+      {goalMode === "out_and_back" && (
+        <PresetRow
+          label="Total distance presets"
           values={[
             { label: "3 km", value: 3 },
             { label: "5 km", value: 5 },

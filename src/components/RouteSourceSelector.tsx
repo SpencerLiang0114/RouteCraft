@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bike, Footprints, Mountain, Route } from "lucide-react";
+import { Bike, Footprints, Route, Upload } from "lucide-react";
 
 const options = [
   {
@@ -10,18 +10,18 @@ const options = [
     accent: "bg-orange-500",
   },
   {
-    href: "/alltrails",
-    title: "Choose from AllTrails",
-    body: "Choose or upload an AllTrails route and analyze distance, elevation, shade, parks, and safety.",
-    icon: Mountain,
-    accent: "bg-emerald-700",
-  },
-  {
     href: "/wizard",
     title: "Generate a new route",
     body: "Create a new personalized route from your preferences.",
     icon: Route,
     accent: "bg-cyan-700",
+  },
+  {
+    href: "/upload",
+    title: "Upload GPX or KML",
+    body: "Import a route file from Garmin, AllTrails, or any GPS device.",
+    icon: Upload,
+    accent: "bg-violet-600",
   },
 ];
 

@@ -46,7 +46,7 @@ export default function Home() {
             Plan smarter running, hiking, and cycling routes.
           </h1>
           <p className="mt-6 max-w-3xl text-xl leading-8 text-emerald-50">
-            Choose a route from Strava or AllTrails, or generate a personalized route based on parks,
+            Choose a route from Strava, or generate a personalized route based on parks,
             shade, elevation, safety, and exploration preferences.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">

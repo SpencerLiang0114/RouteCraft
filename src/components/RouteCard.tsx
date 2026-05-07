@@ -53,6 +53,18 @@ export function RouteCard({
         <Metric selected={selected} label="Duration" value={`${route.estimatedDurationMin} min`} />
         <Metric selected={selected} label="Elevation gain" value={`${route.elevationGainM} m`} />
         <Metric selected={selected} label="Difficulty" value={route.difficulty ?? "Moderate"} />
+        {route.averageSlopePct != null && (
+          <Metric selected={selected} label="Avg grade" value={`${route.averageSlopePct.toFixed(1)}%`} />
+        )}
+        {route.elevDifferenceM != null && (
+          <Metric selected={selected} label="Elev difference" value={`${route.elevDifferenceM} m`} />
+        )}
+        {route.lowestElevM != null && (
+          <Metric selected={selected} label="Lowest elev" value={`${route.lowestElevM > 0 ? "+" : ""}${route.lowestElevM} m`} />
+        )}
+        {route.highestElevM != null && (
+          <Metric selected={selected} label="Highest elev" value={`${route.highestElevM > 0 ? "+" : ""}${route.highestElevM} m`} />
+        )}
       </div>
       <div className="mt-5 grid gap-3">
         <ScoreBar selected={selected} label="Park/path percentage" value={route.metrics.parkScore} />

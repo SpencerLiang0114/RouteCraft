@@ -1,10 +1,10 @@
 export type ActivityType = "running" | "hiking" | "cycling";
 
-export type RouteSource = "generated" | "strava" | "alltrails" | "uploaded";
+export type RouteSource = "generated" | "strava" | "uploaded";
 
 export type RouteType = "loop" | "point_to_point" | "out_and_back";
 
-export type RouteGoalMode = "distance" | "time" | "point_to_point" | "loop";
+export type RouteGoalMode = "distance" | "time" | "point_to_point" | "loop" | "out_and_back";
 
 export type RouteStyle =
   | "easy_flat"
@@ -49,6 +49,11 @@ export interface RouteMetrics {
   totalScore: number;
 }
 
+export interface ElevationPoint {
+  distanceKm: number;
+  elevM: number;
+}
+
 export interface RouteCandidate {
   id: string;
   source: RouteSource;
@@ -63,6 +68,10 @@ export interface RouteCandidate {
   totalDescentM?: number;
   averageSlopePct?: number;
   maxSlopePct?: number;
+  lowestElevM?: number;
+  highestElevM?: number;
+  elevDifferenceM?: number;
+  elevationProfile?: ElevationPoint[];
   difficulty?: Difficulty;
   metrics: RouteMetrics;
   explanation: string;
@@ -85,7 +94,7 @@ export interface RouteAnalysisSignals {
 
 export interface ExternalRouteMock {
   id: string;
-  source: Extract<RouteSource, "strava" | "alltrails">;
+  source: Extract<RouteSource, "strava">;
   name: string;
   activity: ActivityType;
   distanceKm: number;

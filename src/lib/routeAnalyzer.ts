@@ -1,6 +1,7 @@
 import type {
   ActivityType,
   Difficulty,
+  ElevationPoint,
   RouteAnalysisSignals,
   RouteCandidate,
   RouteMetrics,
@@ -24,8 +25,10 @@ interface AnalyzeRouteInput {
   estimatedDurationMin?: number;
   elevationGainM?: number;
   totalDescentM?: number;
+  averageSlopePct?: number;
   maxSlopePct?: number;
   departureTime?: string;
+  elevationProfile?: ElevationPoint[];
   signals?: Partial<RouteAnalysisSignals>;
   explanation?: string;
 }
@@ -161,8 +164,10 @@ export function analyzeRoute(input: AnalyzeRouteInput): RouteCandidate {
     elevationGainM,
     totalDescentM: input.totalDescentM,
     averageSlopePct:
-      distanceKm > 0 ? Math.round((elevationGainM / (distanceKm * 1000)) * 1000) / 10 : undefined,
+      input.averageSlopePct ??
+      (distanceKm > 0 ? Math.round((elevationGainM / (distanceKm * 1000)) * 1000) / 10 : undefined),
     maxSlopePct: input.maxSlopePct,
+    elevationProfile: input.elevationProfile,
     difficulty,
     metrics,
     explanation: buildExplanation(input, metrics, difficulty),

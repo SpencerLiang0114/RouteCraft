@@ -16,6 +16,8 @@ export interface RouteEdge {
   surfaceType?: string;
   roadType?: string;
   elevationGainM?: number;
+  fromAbsElevM?: number;
+  toAbsElevM?: number;
   slope?: number;
   parkScore: number;
   shadeScore: number;
@@ -115,6 +117,10 @@ export function reverseEdge(edge: RouteEdge): RouteEdge {
     from: edge.to,
     to: edge.from,
     geometry: [...edge.geometry].reverse(),
+    fromAbsElevM: edge.toAbsElevM,
+    toAbsElevM: edge.fromAbsElevM,
+    elevationGainM: edge.elevationGainM !== undefined ? -edge.elevationGainM : undefined,
+    slope: edge.slope !== undefined ? -edge.slope : undefined,
   };
 }
 
@@ -175,9 +181,51 @@ export function pathFromEdges(
   };
 }
 
-function pushQueue(queue: QueueItem[], item: QueueItem) {
-  queue.push(item);
-  queue.sort((a, b) => a.priority - b.priority);
+class MinHeap {
+  private heap: QueueItem[] = [];
+
+  get size() {
+    return this.heap.length;
+  }
+
+  push(item: QueueItem) {
+    this.heap.push(item);
+    this.bubbleUp(this.heap.length - 1);
+  }
+
+  pop(): QueueItem | undefined {
+    if (this.heap.length === 0) return undefined;
+    const top = this.heap[0];
+    const last = this.heap.pop()!;
+    if (this.heap.length > 0) {
+      this.heap[0] = last;
+      this.sinkDown(0);
+    }
+    return top;
+  }
+
+  private bubbleUp(i: number) {
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this.heap[parent].priority <= this.heap[i].priority) break;
+      [this.heap[parent], this.heap[i]] = [this.heap[i], this.heap[parent]];
+      i = parent;
+    }
+  }
+
+  private sinkDown(i: number) {
+    const n = this.heap.length;
+    while (true) {
+      let smallest = i;
+      const left = 2 * i + 1;
+      const right = 2 * i + 2;
+      if (left < n && this.heap[left].priority < this.heap[smallest].priority) smallest = left;
+      if (right < n && this.heap[right].priority < this.heap[smallest].priority) smallest = right;
+      if (smallest === i) break;
+      [this.heap[smallest], this.heap[i]] = [this.heap[i], this.heap[smallest]];
+      i = smallest;
+    }
+  }
 }
 
 function heuristicCost(graph: RouteGraph, fromId: string, toId: string) {
@@ -202,12 +250,13 @@ export function findShortestPath(
     return pathFromEdges(graph, [startId], [], 0);
   }
 
-  const openQueue: QueueItem[] = [{ nodeId: startId, priority: 0 }];
+  const openQueue = new MinHeap();
+  openQueue.push({ nodeId: startId, priority: 0 });
   const cameFrom = new Map<string, { previousNodeId: string; edge: RouteEdge }>();
   const costSoFar = new Map<string, number>([[startId, 0]]);
 
-  while (openQueue.length > 0) {
-    const current = openQueue.shift();
+  while (openQueue.size > 0) {
+    const current = openQueue.pop();
 
     if (!current) {
       break;
@@ -239,7 +288,7 @@ export function findShortestPath(
       if (knownCost === undefined || nextCost < knownCost) {
         costSoFar.set(edge.to, nextCost);
         cameFrom.set(edge.to, { previousNodeId: current.nodeId, edge });
-        pushQueue(openQueue, {
+        openQueue.push({
           nodeId: edge.to,
           priority: nextCost + heuristicCost(graph, edge.to, endId),
         });

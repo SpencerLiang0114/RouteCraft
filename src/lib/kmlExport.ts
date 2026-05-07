@@ -2,8 +2,14 @@ import type { RouteCandidate } from "@/types/route";
 import { escapeXml } from "./xmlUtils";
 
 export function routeToKml(route: RouteCandidate) {
+  const profile = route.elevationProfile;
+  const elevationByIndex = profile?.length === route.geometry.length ? profile : undefined;
+
   const coordinates = route.geometry
-    .map((point) => `${point.lng.toFixed(6)},${point.lat.toFixed(6)},0`)
+    .map((point, i) => {
+      const alt = elevationByIndex ? elevationByIndex[i].elevM : 0;
+      return `${point.lng.toFixed(6)},${point.lat.toFixed(6)},${alt}`;
+    })
     .join(" ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>

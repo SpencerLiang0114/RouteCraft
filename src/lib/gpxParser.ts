@@ -21,16 +21,33 @@ export function parseGpxRoute(xml: string, fallbackName: string): RouteCandidate
     throw new Error("GPX route needs at least two valid points.");
   }
 
+  const hasElevation = points.some((p) => p.elevation !== 0);
   const elevationGainM = points.reduce((gain, point, index) => {
-    if (index === 0) {
-      return gain;
-    }
+    if (index === 0) return gain;
     const delta = point.elevation - points[index - 1].elevation;
     return delta > 0 ? gain + delta : gain;
   }, 0);
   const geometry = points.map(({ lat, lng }) => ({ lat, lng }));
+  const distanceKm = calculateRouteDistanceKm(geometry);
 
-  // TODO: Improve AllTrails file import with full track metadata, segments, and permissions checks.
+  let elevationProfile: { distanceKm: number; elevM: number }[] | undefined;
+  if (hasElevation) {
+    let accDistM = 0;
+    elevationProfile = points.map((point, index) => {
+      if (index > 0) {
+        const prev = geometry[index - 1];
+        const curr = geometry[index];
+        const dLat = (curr.lat - prev.lat) * (Math.PI / 180);
+        const dLng = (curr.lng - prev.lng) * (Math.PI / 180);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(prev.lat * (Math.PI / 180)) * Math.cos(curr.lat * (Math.PI / 180)) * Math.sin(dLng / 2) ** 2;
+        accDistM += 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+      return { distanceKm: Math.round(accDistM / 10) / 100, elevM: Math.round(point.elevation) };
+    });
+  }
+
   return analyzeRoute({
     id: `uploaded-${slugify(name ?? fallbackName)}`,
     source: "uploaded",
@@ -38,8 +55,9 @@ export function parseGpxRoute(xml: string, fallbackName: string): RouteCandidate
     activity: "hiking",
     routeType: "point_to_point",
     geometry,
-    distanceKm: calculateRouteDistanceKm(geometry),
+    distanceKm,
     elevationGainM: Math.round(elevationGainM),
+    elevationProfile,
     signals: {
       parkAccess: 62,
       shadeCover: 50,

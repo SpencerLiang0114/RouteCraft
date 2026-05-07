@@ -479,6 +479,8 @@ function applyElevationsToEdges(edges: RouteEdge[], elevations: Map<string, numb
     return {
       ...edge,
       elevationGainM,
+      fromAbsElevM: fromElevation,
+      toAbsElevM: toElevation,
       slope: edge.distanceM > 0 ? elevationGainM / edge.distanceM : 0,
     };
   });

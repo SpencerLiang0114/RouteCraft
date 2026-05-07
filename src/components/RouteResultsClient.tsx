@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
+import { ElevationChart } from "./ElevationChart";
 import { ExportButtons } from "./ExportButtons";
 import { RouteCard } from "./RouteCard";
 import { RouteMap } from "./RouteMap";
@@ -12,13 +15,29 @@ export function RouteResultsClient() {
   const activeRouteId = useRouteStore((state) => state.activeRouteId);
   const setActiveRoute = useRouteStore((state) => state.setActiveRoute);
   const activeRoute = results.find((route) => route.id === activeRouteId) ?? results[0];
+  const searchParams = useSearchParams();
+  const sharedRouteId = searchParams.get("route");
+
+  useEffect(() => {
+    if (!sharedRouteId) return;
+    const { results: currentResults, savedRoutes, setResults, setActiveRoute: activate } = useRouteStore.getState();
+    const inResults = currentResults.find((r) => r.id === sharedRouteId);
+    if (inResults) {
+      activate(sharedRouteId);
+      return;
+    }
+    const inSaved = savedRoutes.find((r) => r.id === sharedRouteId);
+    if (inSaved) {
+      setResults([inSaved], inSaved.id);
+    }
+  }, [sharedRouteId]);
 
   if (!activeRoute) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
         <h1 className="text-4xl font-semibold text-stone-950">No route selected yet</h1>
         <p className="mt-4 text-lg leading-8 text-stone-600">
-          Choose a mock Strava or AllTrails route, upload GPX/KML, or generate a new route.
+          Choose a mock Strava route or generate a new route.
         </p>
         <Link
           href="/route-source"
@@ -53,6 +72,9 @@ export function RouteResultsClient() {
             selectedRouteId={activeRoute.id}
             onSelectRoute={setActiveRoute}
           />
+          {activeRoute.elevationProfile && activeRoute.elevationProfile.length >= 2 && (
+            <ElevationChart profile={activeRoute.elevationProfile} />
+          )}
           <div className="mt-4 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
             <ExportButtons route={activeRoute} />
           </div>

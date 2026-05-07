@@ -11,6 +11,7 @@ import { estimateDurationMin, round } from "@/lib/geoUtils";
 import type { PathResult, RouteEdge } from "./graph";
 import { getEdgeKey } from "./graph";
 import {
+  bearingDegrees,
   calculateGeometryDistanceM,
   isAfternoonDeparture,
   isNightDeparture,
@@ -21,6 +22,117 @@ import {
 import { scoreRoute } from "./routeScoring";
 
 export type RouteStrategy = "recommended" | "lowest_elevation" | "exploration" | "park" | "direct";
+
+// Returns the net elevation change for an edge.
+// For OSM routes with working elevation API, edges carry real fromAbsElevM/toAbsElevM
+// and elevationGainM is their difference. For mock routes and API-failure fallback,
+// we estimate using a bearing-based terrain bias (same model as the mock graph).
+function estimatedEdgeElevation(edge: RouteEdge): number {
+  if (edge.geometry.length < 2) return 0;
+  const from = edge.geometry[0];
+  const to = edge.geometry[edge.geometry.length - 1];
+  const bearing = bearingDegrees(from, to);
+  const uphillBias = Math.cos((bearing * Math.PI) / 180) * 0.018 + Math.sin((bearing * Math.PI) / 180) * 0.01;
+  return edge.distanceM * uphillBias;
+}
+
+function buildElevationData(edges: RouteEdge[]) {
+  // Edges with fromAbsElevM/toAbsElevM carry actual Open-Meteo elevation data.
+  // Edges with only elevationGainM (non-zero) carry mock-graph bearing estimates.
+  // Edges with all zeros have no elevation data — use bearing estimate as fallback.
+  const hasAbsoluteElevation = edges.some((e) => e.fromAbsElevM != null);
+  const hasAnyElevationData = hasAbsoluteElevation || edges.some((e) => (e.elevationGainM ?? 0) !== 0);
+
+  function netElevChange(edge: RouteEdge): number {
+    if (hasAbsoluteElevation) {
+      if (edge.fromAbsElevM != null && edge.toAbsElevM != null) {
+        return edge.toAbsElevM - edge.fromAbsElevM;
+      }
+      return edge.elevationGainM ?? 0;
+    }
+    if (hasAnyElevationData) return edge.elevationGainM ?? 0;
+    return estimatedEdgeElevation(edge);
+  }
+
+  const startAbsElev = hasAbsoluteElevation
+    ? (edges.find((e) => e.fromAbsElevM != null)?.fromAbsElevM ?? 0)
+    : 0;
+
+  // Build raw profile, tagging each point as "real" (from API) or estimated.
+  // profile[0] is treated as a known anchor when we have any absolute elevation.
+  type RawPoint = { distanceKm: number; elevM: number; real: boolean };
+  const rawProfile: RawPoint[] = [
+    { distanceKm: 0, elevM: Math.round(startAbsElev), real: hasAbsoluteElevation },
+  ];
+  let accDistM = 0;
+  let accElevM = startAbsElev;
+
+  for (const edge of edges) {
+    accDistM += edge.distanceM;
+    let real: boolean;
+    if (hasAbsoluteElevation && edge.toAbsElevM != null) {
+      accElevM = edge.toAbsElevM;
+      real = true;
+    } else {
+      accElevM += netElevChange(edge);
+      real = false;
+    }
+    rawProfile.push({ distanceKm: Math.round(accDistM / 10) / 100, elevM: Math.round(accElevM), real });
+  }
+
+  // When we have absolute elevation, interpolate linearly between real anchor points so
+  // connector edges (which carry no API elevation) don't produce flat plateaus in the chart.
+  let profile: Array<{ distanceKm: number; elevM: number }>;
+  if (hasAbsoluteElevation) {
+    const filled = rawProfile.map((p) => ({ ...p }));
+    const realIdx = filled.map((p, i) => (p.real ? i : -1)).filter((i) => i >= 0);
+
+    // Interpolate between consecutive real points.
+    for (let r = 0; r + 1 < realIdx.length; r++) {
+      const lo = realIdx[r];
+      const hi = realIdx[r + 1];
+      const fromElev = filled[lo].elevM;
+      const toElev = filled[hi].elevM;
+      const span = filled[hi].distanceKm - filled[lo].distanceKm;
+      for (let j = lo + 1; j < hi; j++) {
+        const t = span > 0 ? (filled[j].distanceKm - filled[lo].distanceKm) / span : 0;
+        filled[j].elevM = Math.round(fromElev + t * (toElev - fromElev));
+      }
+    }
+
+    // Hold the last known elevation for any trailing connector points.
+    if (realIdx.length > 0) {
+      const lastElev = filled[realIdx[realIdx.length - 1]].elevM;
+      for (let j = realIdx[realIdx.length - 1] + 1; j < filled.length; j++) {
+        filled[j].elevM = lastElev;
+      }
+    }
+
+    profile = filled.map(({ distanceKm, elevM }) => ({ distanceKm, elevM }));
+  } else {
+    profile = rawProfile.map(({ distanceKm, elevM }) => ({ distanceKm, elevM }));
+  }
+
+  // Compute stats from the interpolated profile: sum positive/negative point-to-point diffs.
+  const elevations = profile.map((p) => p.elevM);
+  const lowestElevM = Math.min(...elevations);
+  const highestElevM = Math.max(...elevations);
+  const elevationGainM = Math.round(
+    profile.reduce((total, point, i) => total + (i === 0 ? 0 : Math.max(point.elevM - profile[i - 1].elevM, 0)), 0),
+  );
+  const totalDescentM = Math.round(
+    profile.reduce((total, point, i) => total + (i === 0 ? 0 : Math.max(profile[i - 1].elevM - point.elevM, 0)), 0),
+  );
+
+  return {
+    profile,
+    elevationGainM,
+    totalDescentM,
+    lowestElevM: Math.round(lowestElevM),
+    highestElevM: Math.round(highestElevM),
+    elevDifferenceM: Math.round(highestElevM - lowestElevM),
+  };
+}
 
 export interface GeneratedRouteCandidate extends RouteCandidate {
   edgeIds: string[];
@@ -195,16 +307,11 @@ export function analyzeRoute(route: RouteDraft, preferences: UserPreferences): R
 export function buildRouteCandidate(route: RouteDraft, preferences: UserPreferences): GeneratedRouteCandidate {
   const metrics = analyzeRoute(route, preferences);
   const distanceKm = round(route.path.distanceM / 1000, 1);
-  const elevationGainM = Math.round(
-    route.path.edges.reduce((total, edge) => total + Math.max(edge.elevationGainM ?? 0, 0), 0),
-  );
-  const totalDescentM = Math.round(
-    route.path.edges.reduce((total, edge) => total + Math.max(-(edge.elevationGainM ?? 0), 0), 0),
-  );
+  const elevData = buildElevationData(route.path.edges);
   const maxSlopePct = Math.round(Math.max(0, ...route.path.edges.map((edge) => Math.abs(edge.slope ?? 0) * 100)) * 10) / 10;
   const geometryDistanceM = calculateGeometryDistanceM(route.path.geometry);
   const averageSlopePct =
-    geometryDistanceM > 0 ? Math.round((elevationGainM / geometryDistanceM) * 1000) / 10 : undefined;
+    geometryDistanceM > 0 ? Math.round((elevData.elevationGainM / geometryDistanceM) * 1000) / 10 : undefined;
   const candidate: RouteCandidate = {
     id: route.id,
     source: "generated",
@@ -215,11 +322,15 @@ export function buildRouteCandidate(route: RouteDraft, preferences: UserPreferen
     waypoints: route.waypoints,
     distanceKm,
     estimatedDurationMin: estimateDurationMin(route.activity, distanceKm),
-    elevationGainM,
-    totalDescentM,
+    elevationGainM: elevData.elevationGainM,
+    totalDescentM: elevData.totalDescentM,
     averageSlopePct,
     maxSlopePct,
-    difficulty: getDifficulty(route.activity, distanceKm, elevationGainM, maxSlopePct),
+    lowestElevM: elevData.lowestElevM,
+    highestElevM: elevData.highestElevM,
+    elevDifferenceM: elevData.elevDifferenceM,
+    elevationProfile: elevData.profile,
+    difficulty: getDifficulty(route.activity, distanceKm, elevData.elevationGainM, maxSlopePct),
     metrics,
     explanation: "",
   };

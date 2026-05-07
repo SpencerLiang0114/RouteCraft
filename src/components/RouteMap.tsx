@@ -83,33 +83,25 @@ export function RouteMap({
     routeLayer.clearLayers();
     markerLayer.clearLayers();
 
-    for (const route of routes) {
-      const selected = route.id === selectedRoute?.id;
-      const coordinates = route.geometry.map((point) => [point.lat, point.lng] as LatLngExpression);
+    if (selectedRoute) {
+      const coordinates = selectedRoute.geometry.map((point) => [point.lat, point.lng] as LatLngExpression);
 
-      if (coordinates.length < 2) {
-        continue;
+      if (coordinates.length >= 2) {
+        leaflet.polyline(coordinates, {
+          color: "#052e16",
+          weight: 10,
+          opacity: 0.95,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(routeLayer);
+        leaflet.polyline(coordinates, {
+          color: "#f2c14e",
+          weight: 4,
+          opacity: 1,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(routeLayer);
       }
-
-      const casing = leaflet.polyline(coordinates, {
-        color: selected ? "#052e16" : "#44403c",
-        weight: selected ? 10 : 6,
-        opacity: selected ? 0.95 : 0.35,
-        lineCap: "round",
-        lineJoin: "round",
-      });
-      const routeLine = leaflet.polyline(coordinates, {
-        color: selected ? "#f2c14e" : "#78716c",
-        weight: selected ? 4 : 3,
-        opacity: selected ? 1 : 0.65,
-        lineCap: "round",
-        lineJoin: "round",
-      });
-
-      casing.on("click", () => onSelectRoute?.(route.id));
-      routeLine.on("click", () => onSelectRoute?.(route.id));
-      casing.addTo(routeLayer);
-      routeLine.addTo(routeLayer);
     }
 
     if (selectedRoute) {

@@ -48,6 +48,20 @@ export function computeEdgeCost(edge: RouteEdge, preferences: UserPreferences) {
     cost += elevationPreference * slope * distance * 1.8;
   }
 
+  const style = preferences.routeStyle;
+  if (style === "easy_flat") {
+    cost += elevationGain * 3.5;
+    cost += slope * distance * 2.5;
+  } else if (style === "park_heavy") {
+    cost -= edge.parkScore * distance * 0.28;
+  } else if (style === "shaded") {
+    cost -= edge.shadeScore * distance * 0.35;
+  } else if (style === "scenic") {
+    cost -= edge.sceneryScore * distance * 0.28;
+  } else if (style === "exploration") {
+    cost -= (edge.noveltyScore ?? edge.sceneryScore) * distance * 0.28;
+  }
+
   cost += safetyPreference * (1 - edge.safetyScore) * distance * 1.15;
   cost += shadePreference * (1 - edge.shadeScore) * distance * 0.42;
   cost -= parkPreference * edge.parkScore * distance * 0.32;

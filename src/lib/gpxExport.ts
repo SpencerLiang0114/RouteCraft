@@ -2,11 +2,14 @@ import type { RouteCandidate } from "@/types/route";
 import { escapeXml } from "./xmlUtils";
 
 export function routeToGpx(route: RouteCandidate) {
+  const profile = route.elevationProfile;
+  const elevationByIndex = profile?.length === route.geometry.length ? profile : undefined;
+
   const points = route.geometry
-    .map(
-      (point) =>
-        `      <trkpt lat="${point.lat.toFixed(6)}" lon="${point.lng.toFixed(6)}"></trkpt>`,
-    )
+    .map((point, i) => {
+      const ele = elevationByIndex ? `\n        <ele>${elevationByIndex[i].elevM}</ele>` : "";
+      return `      <trkpt lat="${point.lat.toFixed(6)}" lon="${point.lng.toFixed(6)}">${ele}\n      </trkpt>`;
+    })
     .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>

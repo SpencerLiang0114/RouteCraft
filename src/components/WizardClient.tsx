@@ -46,7 +46,9 @@ export function WizardClient() {
   const setResults = useRouteStore((state) => state.setResults);
   const router = useRouter();
   const progress = useMemo(() => Math.round(((step + 1) / stepTitles.length) * 100), [step]);
-  const cannotContinue = step === 1 && !preferences.startPoint;
+  const cannotContinue =
+    (step === 1 && !preferences.startPoint) ||
+    (step === 2 && preferences.goalMode === "point_to_point" && !preferences.endPoint);
 
   async function generateRoutes() {
     setIsGenerating(true);

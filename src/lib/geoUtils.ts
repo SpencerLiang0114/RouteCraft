@@ -55,7 +55,6 @@ export function formatSource(source: RouteSource) {
   const labels: Record<RouteSource, string> = {
     generated: "Generated",
     strava: "Strava",
-    alltrails: "AllTrails",
     uploaded: "Uploaded",
   };
 
