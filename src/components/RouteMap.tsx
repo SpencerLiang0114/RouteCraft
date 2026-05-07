@@ -45,7 +45,7 @@ export function RouteMap({
 
       const map = L.map(containerRef.current, {
         zoomControl: false,
-        scrollWheelZoom: true,
+        scrollWheelZoom: false,
       }).setView(defaultCenter, 13);
 
       L.control.zoom({ position: "bottomright" }).addTo(map);
@@ -159,16 +159,6 @@ function addRouteMarkers(
     if (end) {
       addMarker(L, markerLayer, [end.lat, end.lng], "#b45309", "End");
     }
-  }
-
-  for (const waypoint of route.waypoints ?? []) {
-    L.circleMarker([waypoint.lat, waypoint.lng], {
-      radius: 6,
-      color: "#0e7490",
-      fillColor: "#ffffff",
-      fillOpacity: 1,
-      weight: 3,
-    }).addTo(markerLayer);
   }
 }
 

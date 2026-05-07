@@ -65,8 +65,8 @@ export function RouteResultsClient() {
         </Link>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(380px,0.75fr)]">
-        <div className="lg:sticky lg:top-24 lg:self-start">
+      <div className="grid gap-6 lg:h-[calc(100vh-12rem)] lg:grid-cols-[minmax(0,1.25fr)_minmax(380px,0.75fr)] lg:overflow-hidden">
+        <div className="min-h-0 lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:[scrollbar-gutter:stable]">
           <RouteMap
             routes={results}
             selectedRouteId={activeRoute.id}
@@ -80,7 +80,7 @@ export function RouteResultsClient() {
           </div>
         </div>
 
-        <aside className="grid gap-4">
+        <aside className="grid min-h-0 gap-4 lg:h-full lg:auto-rows-max lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:[scrollbar-gutter:stable]">
           {results.map((route) => (
             <RouteCard
               key={route.id}

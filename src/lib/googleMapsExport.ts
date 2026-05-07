@@ -1,14 +1,33 @@
-import type { RouteCandidate } from "@/types/route";
+import type { LatLng, RouteCandidate } from "@/types/route";
 
-function pointParam(point: { lat: number; lng: number }) {
-  return `${point.lat},${point.lng}`;
+const MAX_GOOGLE_MAPS_WAYPOINTS = 9;
+
+function pointParam(point: LatLng) {
+  return `${formatCoordinate(point.lat)},${formatCoordinate(point.lng)}`;
+}
+
+function formatCoordinate(value: number) {
+  return Number(value.toFixed(6)).toString();
+}
+
+function selectGeometryWaypoints(geometry: LatLng[]) {
+  const middlePoints = geometry.slice(1, -1);
+  const count = Math.min(MAX_GOOGLE_MAPS_WAYPOINTS, middlePoints.length);
+
+  if (count === middlePoints.length) {
+    return middlePoints;
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    const pointIndex = Math.floor(((index + 1) * middlePoints.length) / (count + 1));
+    return middlePoints[pointIndex];
+  });
 }
 
 export function createGoogleMapsDirectionsUrl(route: RouteCandidate) {
   const [origin, ...rest] = route.geometry;
   const destination = rest.at(-1) ?? origin;
-  const middlePoints = rest.slice(0, -1);
-  const waypoints = route.waypoints?.length ? route.waypoints : middlePoints.slice(0, 8);
+  const waypoints = selectGeometryWaypoints(route.geometry);
   const travelmode = route.activity === "cycling" ? "bicycling" : "walking";
   const params = new URLSearchParams({
     api: "1",
