@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
@@ -17,6 +17,27 @@ export function RouteResultsClient() {
   const activeRoute = results.find((route) => route.id === activeRouteId) ?? results[0];
   const searchParams = useSearchParams();
   const sharedRouteId = searchParams.get("route");
+  const analysisColumnRef = useRef<HTMLDivElement | null>(null);
+  const [analysisColumnHeight, setAnalysisColumnHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const column = analysisColumnRef.current;
+    if (!column) return;
+
+    const updateHeight = () => {
+      setAnalysisColumnHeight(Math.ceil(column.getBoundingClientRect().height));
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(column);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [activeRoute?.id, results.length]);
 
   useEffect(() => {
     if (!sharedRouteId) return;
@@ -65,8 +86,8 @@ export function RouteResultsClient() {
         </Link>
       </div>
 
-      <div className="grid gap-6 lg:h-[calc(100vh-12rem)] lg:grid-cols-[minmax(0,1.25fr)_minmax(380px,0.75fr)] lg:overflow-hidden">
-        <div className="min-h-0 lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:[scrollbar-gutter:stable]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(380px,0.75fr)]">
+        <div ref={analysisColumnRef}>
           <RouteMap
             routes={results}
             selectedRouteId={activeRoute.id}
@@ -80,15 +101,28 @@ export function RouteResultsClient() {
           </div>
         </div>
 
-        <aside className="grid min-h-0 gap-4 lg:h-full lg:auto-rows-max lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:[scrollbar-gutter:stable]">
-          {results.map((route) => (
-            <RouteCard
-              key={route.id}
-              route={route}
-              selected={route.id === activeRoute.id}
-              onSelect={() => setActiveRoute(route.id)}
-            />
-          ))}
+        <aside
+          className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm lg:max-h-[var(--analysis-column-height)]"
+          style={
+            {
+              "--analysis-column-height": analysisColumnHeight ? `${analysisColumnHeight}px` : "none",
+            } as CSSProperties
+          }
+        >
+          <div className="border-b border-stone-200 p-4">
+            <p className="font-semibold text-emerald-800">Generated routes</p>
+            <p className="mt-1 text-sm text-stone-600">Compare options and select a route to inspect.</p>
+          </div>
+          <div className="grid gap-4 overflow-y-auto p-4 lg:min-h-0">
+            {results.map((route) => (
+              <RouteCard
+                key={route.id}
+                route={route}
+                selected={route.id === activeRoute.id}
+                onSelect={() => setActiveRoute(route.id)}
+              />
+            ))}
+          </div>
         </aside>
       </div>
     </div>

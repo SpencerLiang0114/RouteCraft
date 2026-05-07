@@ -59,10 +59,9 @@ Strava credentials are optional. Add them to `.env.local` to enable live Strava 
 1. Load a route graph near the selected start point with `loadOsmGraphNear()`.
 2. Fetch road/path geometry from Overpass and elevation data from Open-Meteo.
 3. Dispatch to the loop, out-and-back, or point-to-point generator.
-4. Find candidate paths with A* and Yen's K-shortest paths.
-5. Rank candidates with route-level metrics and user preferences.
-6. Filter for geometric diversity.
-7. Return up to three labeled route options: Recommended, Lowest Elevation, and Exploration.
+4. Filter candidates to within ±500 m of the user's target distance (relaxed if fewer than three survive).
+5. Filter for geometric diversity.
+6. Return the top three candidates ranked by total score (highest first).
 
 If RouteCraft cannot load enough mapped road/path data near the selected point, generation fails with a clear error instead of returning synthetic geometry.
 
@@ -80,17 +79,27 @@ priority = costSoFar[node]
   + distanceM(node, goal) * 0.2
 ```
 
-Out-and-back routes use edge penalties to discourage returning on the exact outbound path while still allowing it when the graph has limited alternatives.
+`edgePenalty` lets each generator bias A* away from specific edges without blocking them outright.
 
-### Yen's K-Shortest Paths
+### Loop Generation
 
-Loop and point-to-point generation use Yen's algorithm to produce multiple path candidates:
+Picks waypoints around the start at radii calibrated to land near the target round-trip distance, then runs A* through them with **cumulative edge penalties**: edges already used by earlier segments become expensive for later segments, so the return leg uses different roads. The closing segment to the start node gets an additional penalty boost. A stack-based despike removes any go-in/come-back artifacts at waypoint transitions, and a self-overlap filter (≤15 % strict, ≤35 % loose) rejects lollipop loops.
+
+### Out-and-Back Generation
+
+Single-source Dijkstra from the start point computes actual road distances to every reachable node. Destinations are filtered to within ±25 % of `target / 2` and sorted by distance accuracy. The return leg always retraces the outbound exactly, so total distance is deterministic (`2 × outbound`).
+
+### Point-to-Point with Yen's K-Shortest Paths
+
+Yen's algorithm produces multiple alternatives between the user's start and end:
 
 1. Find the cheapest path with A*.
 2. Iterate over spur nodes in accepted paths.
 3. Temporarily block edges that would duplicate an accepted root path.
 4. Run A* from each spur node to the goal.
 5. Accept the cheapest unique candidate until enough options are found.
+
+For target-distance detours, an intermediate via-point is selected and the second leg is biased away from the first leg's edges so the two halves use different roads.
 
 `routeDiversity.ts` then removes candidates that are too geometrically similar.
 

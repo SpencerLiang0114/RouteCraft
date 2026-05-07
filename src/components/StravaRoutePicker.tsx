@@ -29,8 +29,8 @@ type StravaFilter = "all" | "running" | "cycling";
 type StravaStatus = "loading" | "live" | "mock" | "error";
 
 const demoLocation = { lat: 42.447, lng: -76.485 };
-const radiusOptions = [0.5, 1.5, 3, 6] as const;
-const segmentLimitOptions = [20, 30, 40] as const;
+const STRAVA_RADIUS_KM = 1.5;
+const STRAVA_SEGMENT_LIMIT = 20;
 const filters: Array<{ label: string; value: StravaFilter }> = [
   { label: "All Sports", value: "all" },
   { label: "Run", value: "running" },
@@ -47,8 +47,6 @@ export function StravaRoutePicker() {
   const markerLayerRef = useRef<Leaflet.LayerGroup | null>(null);
   const selectRouteRef = useRef<(routeId: string) => void>(() => undefined);
   const [filter, setFilter] = useState<StravaFilter>("all");
-  const [startingRadiusKm, setStartingRadiusKm] = useState<(typeof radiusOptions)[number]>(1.5);
-  const [segmentLimit, setSegmentLimit] = useState<(typeof segmentLimitOptions)[number]>(20);
   const [selectedRouteId, setSelectedRouteId] = useState(mockStravaRoutes[0]?.id ?? "");
   const [apiRoutes, setApiRoutes] = useState<ExternalRouteMock[] | null>(null);
   const [stravaStatus, setStravaStatus] = useState<StravaStatus>("loading");
@@ -157,8 +155,8 @@ export function StravaRoutePicker() {
         const data = await loadStravaSegments({
           location: { lat: userLat, lng: userLng },
           activity,
-          radiusKm: startingRadiusKm,
-          limit: segmentLimit,
+          radiusKm: STRAVA_RADIUS_KM,
+          limit: STRAVA_SEGMENT_LIMIT,
           signal: controller.signal,
         });
 
@@ -171,7 +169,7 @@ export function StravaRoutePicker() {
           setSelectedRouteId(data.segments[0].id);
           setStravaStatus("live");
           setStravaMessage(
-            `Showing ${data.segments.length} of up to ${segmentLimit} live Strava segment${data.segments.length === 1 ? "" : "s"} with a path inside ${startingRadiusKm} km.`,
+            `Showing ${data.segments.length} of up to ${STRAVA_SEGMENT_LIMIT} live Strava segment${data.segments.length === 1 ? "" : "s"} with a path inside ${STRAVA_RADIUS_KM} km.`,
           );
           return;
         }
@@ -193,7 +191,7 @@ export function StravaRoutePicker() {
     void loadSegments();
 
     return () => controller.abort();
-  }, [filter, segmentLimit, startingRadiusKm, userLat, userLng]);
+  }, [filter, userLat, userLng]);
 
   useEffect(() => {
     const leaflet = leafletRef.current;
@@ -369,68 +367,73 @@ export function StravaRoutePicker() {
                 Use location
               </button>
             </div>
-            <div className="pointer-events-auto flex flex-wrap gap-2">
-              {filters.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => {
-                    setStravaStatus("loading");
-                    setStravaMessage("Loading Strava segments...");
-                    setFilter(item.value);
-                  }}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-semibold shadow-sm ${
-                    filter === item.value
-                      ? "border-orange-600 bg-orange-50 text-orange-700"
-                      : "border-stone-200 bg-white text-stone-700 hover:border-orange-500"
-                  }`}
-                >
-                  {item.value === "cycling" ? <Bike size={16} /> : <Activity size={16} />}
-                  {item.label}
-                </button>
-              ))}
-              <div className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white p-1 text-sm font-semibold text-stone-700 shadow-sm">
-                <span className="px-2 text-stone-500">Radius</span>
-                {radiusOptions.map((radius) => (
+            <div className="pointer-events-auto flex flex-wrap items-start gap-2">
+              {filters.map((item) =>
+                item.value === "all" ? (
+                  <div key={item.value} className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStravaStatus("loading");
+                        setStravaMessage("Loading Strava segments...");
+                        setFilter(item.value);
+                      }}
+                      className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-semibold shadow-sm ${
+                        filter === item.value
+                          ? "border-orange-600 bg-orange-50 text-orange-700"
+                          : "border-stone-200 bg-white text-stone-700 hover:border-orange-500"
+                      }`}
+                    >
+                      <Activity size={16} />
+                      {item.label}
+                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => mapRef.current?.setView([userLocation.lat, userLocation.lng], 14)}
+                        className="grid size-10 place-items-center rounded-md border border-stone-200 bg-white text-stone-900 shadow-sm hover:border-orange-500"
+                        title="Recenter"
+                      >
+                        <Crosshair size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => mapRef.current?.zoomIn()}
+                        className="grid size-10 place-items-center rounded-md border border-stone-200 bg-white text-stone-900 shadow-sm hover:border-orange-500"
+                        title="Zoom in"
+                      >
+                        <ZoomIn size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => mapRef.current?.zoomOut()}
+                        className="grid size-10 place-items-center rounded-md border border-stone-200 bg-white text-stone-900 shadow-sm hover:border-orange-500"
+                        title="Zoom out"
+                      >
+                        <ZoomOut size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <button
-                    key={radius}
+                    key={item.value}
                     type="button"
                     onClick={() => {
                       setStravaStatus("loading");
                       setStravaMessage("Loading Strava segments...");
-                      setStartingRadiusKm(radius);
+                      setFilter(item.value);
                     }}
-                    className={`rounded-md px-3 py-1.5 ${
-                      startingRadiusKm === radius
-                        ? "bg-orange-600 text-white"
-                        : "text-stone-700 hover:bg-orange-50"
+                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-semibold shadow-sm ${
+                      filter === item.value
+                        ? "border-orange-600 bg-orange-50 text-orange-700"
+                        : "border-stone-200 bg-white text-stone-700 hover:border-orange-500"
                     }`}
                   >
-                    {radius} km
+                    {item.value === "cycling" ? <Bike size={16} /> : <Activity size={16} />}
+                    {item.label}
                   </button>
-                ))}
-              </div>
-              <div className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white p-1 text-sm font-semibold text-stone-700 shadow-sm">
-                <span className="px-2 text-stone-500">Segments</span>
-                {segmentLimitOptions.map((limit) => (
-                  <button
-                    key={limit}
-                    type="button"
-                    onClick={() => {
-                      setStravaStatus("loading");
-                      setStravaMessage("Loading Strava segments...");
-                      setSegmentLimit(limit);
-                    }}
-                    className={`rounded-md px-3 py-1.5 ${
-                      segmentLimit === limit
-                        ? "bg-orange-600 text-white"
-                        : "text-stone-700 hover:bg-orange-50"
-                    }`}
-                  >
-                    {limit}
-                  </button>
-                ))}
-              </div>
+                ),
+              )}
               <button
                 type="button"
                 onClick={searchCurrentMapArea}
@@ -440,33 +443,6 @@ export function StravaRoutePicker() {
                 Search this area
               </button>
             </div>
-          </div>
-
-          <div className="absolute left-4 top-44 z-20 grid gap-2">
-            <button
-              type="button"
-              onClick={() => mapRef.current?.setView([userLocation.lat, userLocation.lng], 14)}
-              className="grid size-10 place-items-center rounded-md bg-white text-stone-900 shadow-sm"
-              title="Recenter"
-            >
-              <Crosshair size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={() => mapRef.current?.zoomIn()}
-              className="grid size-10 place-items-center rounded-md bg-white text-stone-900 shadow-sm"
-              title="Zoom in"
-            >
-              <ZoomIn size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={() => mapRef.current?.zoomOut()}
-              className="grid size-10 place-items-center rounded-md bg-white text-stone-900 shadow-sm"
-              title="Zoom out"
-            >
-              <ZoomOut size={18} />
-            </button>
           </div>
 
           <div className="absolute bottom-4 left-4 z-20 rounded-lg bg-white/95 px-4 py-3 text-sm font-semibold text-stone-700 shadow-sm">
