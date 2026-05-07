@@ -152,12 +152,13 @@ function addRouteMarkers(
   const start = route.geometry[0];
   const end = route.geometry.at(-1) ?? start;
 
-  if (start) {
+  if (start && end && sameMapPoint(start, end)) {
+    addCoincidentEndpointMarkers(L, markerLayer, [start.lat, start.lng]);
+  } else if (start) {
     addMarker(L, markerLayer, [start.lat, start.lng], "#064e3b", "Start");
-  }
-
-  if (end) {
-    addMarker(L, markerLayer, [end.lat, end.lng], "#b45309", "End");
+    if (end) {
+      addMarker(L, markerLayer, [end.lat, end.lng], "#b45309", "End");
+    }
   }
 
   for (const waypoint of route.waypoints ?? []) {
@@ -169,6 +170,41 @@ function addRouteMarkers(
       weight: 3,
     }).addTo(markerLayer);
   }
+}
+
+function sameMapPoint(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+) {
+  return Math.abs(a.lat - b.lat) < 0.00001 && Math.abs(a.lng - b.lng) < 0.00001;
+}
+
+function addCoincidentEndpointMarkers(
+  L: typeof import("leaflet"),
+  markerLayer: LayerGroup,
+  point: LatLngExpression,
+) {
+  const width = 116;
+  const height = 30;
+  const icon = L.divIcon({
+    className: "",
+    iconSize: [width, height],
+    iconAnchor: [width / 2, height / 2],
+    html: `
+      <div style="display:flex;align-items:center;justify-content:center;gap:4px;width:${width}px;height:${height}px">
+        <span style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;background:rgb(255 255 255 / 0.96);color:#1c1917;box-shadow:0 10px 24px rgb(28 25 23 / 0.14);font:800 12px/1 var(--font-body), Trebuchet MS, sans-serif;padding:6px 7px;white-space:nowrap">
+          <span style="display:block;width:11px;height:11px;border:2px solid #fff;border-radius:999px;background:#064e3b;box-shadow:0 4px 10px rgb(28 25 23 / 0.18)"></span>
+          Start
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;background:rgb(255 255 255 / 0.96);color:#1c1917;box-shadow:0 10px 24px rgb(28 25 23 / 0.14);font:800 12px/1 var(--font-body), Trebuchet MS, sans-serif;padding:6px 7px;white-space:nowrap">
+          <span style="display:block;width:11px;height:11px;border:2px solid #fff;border-radius:999px;background:#b45309;box-shadow:0 4px 10px rgb(28 25 23 / 0.18)"></span>
+          End
+        </span>
+      </div>
+    `,
+  });
+
+  L.marker(point, { icon, interactive: false }).addTo(markerLayer);
 }
 
 function addMarker(
