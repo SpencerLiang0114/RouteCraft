@@ -467,6 +467,27 @@ export function reversePath(path: PathResult): PathResult {
   };
 }
 
+export function pathSelfOverlapRatio(path: PathResult): number {
+  if (path.edges.length === 0 || path.distanceM <= 0) {
+    return 0;
+  }
+
+  const useCount = new Map<string, number>();
+  for (const edge of path.edges) {
+    const key = getEdgeKey(edge);
+    useCount.set(key, (useCount.get(key) ?? 0) + 1);
+  }
+
+  let overlapDistanceM = 0;
+  for (const edge of path.edges) {
+    if ((useCount.get(getEdgeKey(edge)) ?? 0) > 1) {
+      overlapDistanceM += edge.distanceM;
+    }
+  }
+
+  return overlapDistanceM / path.distanceM;
+}
+
 export function combinePaths(graph: RouteGraph, paths: PathResult[]) {
   const edges = paths.flatMap((path) => path.edges);
   const nodeIds: string[] = [];

@@ -44,11 +44,20 @@ export function generatePointToPointRoutes(preferences: UserPreferences, graph: 
             const firstLeg = findShortestPath(graph, startNode.id, item.node.id, preferences, {
               blockedNodeIds: new Set([endNode.id]),
             });
+
+            if (!firstLeg) {
+              return [];
+            }
+
+            const secondLegPenalties = new Map(
+              firstLeg.edges.map((edge) => [getEdgeKey(edge), 0.6]),
+            );
             const secondLeg = findShortestPath(graph, item.node.id, endNode.id, preferences, {
               blockedNodeIds: new Set([startNode.id]),
+              edgePenalties: secondLegPenalties,
             });
 
-            if (!firstLeg || !secondLeg) {
+            if (!secondLeg) {
               return [];
             }
 
