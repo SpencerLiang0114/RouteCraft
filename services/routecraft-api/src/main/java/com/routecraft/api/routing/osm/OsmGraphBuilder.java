@@ -137,6 +137,13 @@ public final class OsmGraphBuilder {
         return new GraphDraft(new ArrayList<>(nodes.values()), edges);
     }
 
+    /**
+     * Trims the raw graph to the local area, keeping only the top {@code maxEdges} edges
+     * ranked by quality and proximity.
+     *
+     * <p>Time complexity: O(E log E) for sorting, O(E) for filtering.
+     * Space complexity: O(E) for the scored list.
+     */
     public static GraphDraft trimToLocalGraph(
             LatLng startPoint,
             List<RouteNode> nodes,
@@ -192,6 +199,14 @@ public final class OsmGraphBuilder {
         return result;
     }
 
+    /**
+     * Snaps an anchor point (start/end) onto up to 6 nearby edges by linear projection,
+     * then splits those edges and connects the anchor via short connector edges.
+     *
+     * <p>Time complexity: O(E × G) for the projection scan where G = geometry points per edge
+     * (typically 2–5). Capped at 6 projections so the resulting graph injection is O(1).
+     * Space complexity: O(E) for the ranked list (then pruned to 6).
+     */
     public static GraphDraft addAnchorNode(
             String anchorId,
             LatLng point,
@@ -311,6 +326,14 @@ public final class OsmGraphBuilder {
         return GeoUtils.clamp(targetDistanceKm * activityMultiplier + 1.0, 2.5, maxRadius);
     }
 
+    /**
+     * Scores an edge midpoint against the nearest green features.
+     *
+     * <p>Time complexity: O(F × G_f) per edge midpoint, where F = number of green features
+     * and G_f = geometry points per feature. Called once per edge during graph construction;
+     * results are baked into the edge and never recomputed.
+     * Space complexity: O(min(F, 5)) for the hit list.
+     */
     private static GreenScores greenScores(LatLng point, List<GreenFeature> features) {
         record Hit(GreenFeature feature, double distanceM) {}
         List<Hit> hits = new ArrayList<>();

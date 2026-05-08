@@ -3,6 +3,7 @@ package com.routecraft.api.routing.generator;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.routecraft.api.routing.graph.GeoUtils;
@@ -68,28 +69,41 @@ public final class RouteDiversity {
     // Overlap metrics
     // ------------------------------------------------------------------
 
+    /**
+     * Edge-distance overlap ratio between two routes.
+     *
+     * <p>Time complexity: O(E_a + E_b) — builds O(1) lookup maps once per route,
+     * then iterates the intersection. Previously O(E_a · E_b) due to distanceByEdge scans.
+     */
     private static double edgeOverlap(GeneratedRouteCandidate a, GeneratedRouteCandidate b) {
-        Set<String> idsA = new HashSet<>(a.edgeIds());
-        Set<String> idsB = new HashSet<>(b.edgeIds());
-        Set<String> shared = new HashSet<>(idsA);
-        shared.retainAll(idsB);
+        // Build edge → accumulated distance maps once for each route (O(E) each).
+        Map<String, Double> distA = buildEdgeDistanceMap(a);
+        Map<String, Double> distB = buildEdgeDistanceMap(b);
+
+        // Iterate the smaller map and intersect with the larger (O(min(E_a, E_b))).
+        if (distB.size() < distA.size()) {
+            Map<String, Double> tmp = distA; distA = distB; distB = tmp;
+        }
         double sharedDistance = 0;
-        for (String edgeId : shared) {
-            sharedDistance += Math.min(distanceByEdge(a, edgeId), distanceByEdge(b, edgeId));
+        for (Map.Entry<String, Double> entry : distA.entrySet()) {
+            Double dB = distB.get(entry.getKey());
+            if (dB != null) {
+                sharedDistance += Math.min(entry.getValue(), dB);
+            }
         }
         double shorterDistance = Math.min(a.candidate().distanceKm(), b.candidate().distanceKm()) * 1000;
         return shorterDistance > 0 ? sharedDistance / shorterDistance : 0;
     }
 
-    private static double distanceByEdge(GeneratedRouteCandidate route, String edgeKey) {
-        double total = 0;
+    /** Builds an undirectedKey → total distance map for a route's edges in O(E). */
+    private static Map<String, Double> buildEdgeDistanceMap(GeneratedRouteCandidate route) {
+        Map<String, Double> map = new java.util.HashMap<>();
         for (RouteEdge edge : route.edges()) {
-            if (edge.undirectedKey().equals(edgeKey)) {
-                total += edge.distanceM();
-            }
+            map.merge(edge.undirectedKey(), edge.distanceM(), Double::sum);
         }
-        return total;
+        return map;
     }
+
 
     /**
      * Haversine distance between the geographic centroids of two routes' geometry.

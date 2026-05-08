@@ -34,6 +34,23 @@ public final class Pathfinding {
             String endId,
             UserPreferences preferences,
             PathOptions options) {
+        // Build preference cache once for the entire A* run — avoids re-normalising on
+        // every edge relaxation (previously: 4-6 divisions × |settled nodes| × degree).
+        return findShortestPath(graph, startId, endId, EdgeCost.PreferenceCache.of(preferences), options);
+    }
+
+    /**
+     * Core A* implementation using a pre-built {@link EdgeCost.PreferenceCache}.
+     *
+     * <p>Time complexity: O((V + E) log V) with the haversine heuristic.
+     * Space complexity: O(V) for the cost/cameFrom maps and priority queue.
+     */
+    static Optional<PathResult> findShortestPath(
+            RouteGraph graph,
+            String startId,
+            String endId,
+            EdgeCost.PreferenceCache prefCache,
+            PathOptions options) {
         if (startId.equals(endId)) {
             return Optional.of(pathFromEdges(graph, List.of(startId), List.of(), 0));
         }
@@ -68,7 +85,7 @@ public final class Pathfinding {
                     continue;
                 }
 
-                double cost = EdgeCost.compute(edge, preferences);
+                double cost = EdgeCost.compute(edge, prefCache);
                 if (!Double.isFinite(cost)) {
                     continue;
                 }
@@ -94,6 +111,7 @@ public final class Pathfinding {
 
         return Optional.empty();
     }
+
 
     private static double heuristicCost(RouteGraph graph, String fromId, String toId) {
         RouteNode from = graph.nodes().get(fromId);
@@ -152,25 +170,49 @@ public final class Pathfinding {
         return new PathResult(List.copyOf(nodeIds), List.copyOf(edges), List.copyOf(geometry), distanceM, cost);
     }
 
+    /**
+     * Yen's K-shortest simple paths algorithm.
+     *
+     * <p>Time complexity: O(K · N · (V + E) log V) where N = path length.
+     * Space complexity: O(K · N) for accepted paths + O(C) for the candidate heap.
+     *
+     * <p>Optimisations applied:
+     * <ul>
+     *   <li>A single {@link EdgeCost.PreferenceCache} is built once and reused across all spur runs.
+     *   <li>Root cost is maintained as a running prefix sum rather than being recomputed
+     *       from scratch for each spur (eliminates O(K·N²) redundant cost evaluations).
+     * </ul>
+     */
     public static List<PathResult> findKShortestPaths(
             RouteGraph graph,
             String startId,
             String endId,
             UserPreferences preferences,
             int maxPaths) {
-        Optional<PathResult> firstPath = findShortestPath(graph, startId, endId, preferences);
+        // Build the cache once for the entire K-shortest-paths run.
+        EdgeCost.PreferenceCache prefCache = EdgeCost.PreferenceCache.of(preferences);
+
+        Optional<PathResult> firstPath = findShortestPath(graph, startId, endId, prefCache, PathOptions.empty());
         if (firstPath.isEmpty()) {
             return List.of();
         }
         List<PathResult> accepted = new ArrayList<>();
         accepted.add(firstPath.get());
 
+        // Pre-compute a prefix-cost array for the first accepted path so subsequent
+        // iterations can look up root cost in O(1) instead of O(spurIndex).
         List<PathResult> candidates = new ArrayList<>();
         Set<String> candidateSignatures = new HashSet<>();
         candidateSignatures.add(pathSignature(firstPath.get()));
 
         for (int k = 1; k < maxPaths; k++) {
             PathResult previousPath = accepted.get(k - 1);
+
+            // Build a prefix-cost array for this path so root cost per spur is O(1).
+            double[] prefixCost = new double[previousPath.edges().size() + 1];
+            for (int i = 0; i < previousPath.edges().size(); i++) {
+                prefixCost[i + 1] = prefixCost[i] + EdgeCost.compute(previousPath.edges().get(i), prefCache);
+            }
 
             for (int spurIndex = 0; spurIndex < previousPath.nodeIds().size() - 1; spurIndex++) {
                 String spurNodeId = previousPath.nodeIds().get(spurIndex);
@@ -196,7 +238,7 @@ public final class Pathfinding {
                 }
 
                 Optional<PathResult> spurPath = findShortestPath(
-                        graph, spurNodeId, endId, preferences,
+                        graph, spurNodeId, endId, prefCache,
                         new PathOptions(blockedEdgeIds, blockedNodeIds, null));
 
                 if (spurPath.isEmpty()) {
@@ -209,10 +251,8 @@ public final class Pathfinding {
                 if (spurPath.get().nodeIds().size() > 1) {
                     combinedNodeIds.addAll(spurPath.get().nodeIds().subList(1, spurPath.get().nodeIds().size()));
                 }
-                double rootCost = 0;
-                for (RouteEdge edge : rootEdges) {
-                    rootCost += EdgeCost.compute(edge, preferences);
-                }
+                // Root cost is now O(1) via prefix array instead of O(spurIndex) recomputation.
+                double rootCost = prefixCost[spurIndex];
                 PathResult combinedPath = pathFromEdges(
                         graph, combinedNodeIds, combinedEdges, rootCost + spurPath.get().cost());
                 String signature = pathSignature(combinedPath);
@@ -230,6 +270,7 @@ public final class Pathfinding {
 
         return accepted;
     }
+
 
     private static String pathSignature(PathResult path) {
         StringBuilder sb = new StringBuilder();
@@ -287,6 +328,15 @@ public final class Pathfinding {
         return pathFromEdges(graph, newNodeIds, stack, newCost);
     }
 
+    /**
+     * Standard single-source Dijkstra over the full graph.
+     *
+     * <p>Time complexity: O((V + E) log V) using a binary-heap priority queue.
+     * Space complexity: O(V) for the distances map and settled set.
+     *
+     * <p>Called once per out-and-back generation to get road distances from the start node
+     * to all reachable nodes. Results are reused across all candidate destination lookups.
+     */
     public static Map<String, Double> singleSourceShortestDistances(RouteGraph graph, String startId) {
         Map<String, Double> distances = new HashMap<>();
         distances.put(startId, 0.0);

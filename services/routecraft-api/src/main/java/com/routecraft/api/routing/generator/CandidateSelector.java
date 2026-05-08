@@ -149,6 +149,10 @@ public final class CandidateSelector {
      * Partitions all graph nodes into {@value #SECTOR_COUNT} directional sectors around the
      * start point, keeping only nodes within a reasonable radius band and returning the
      * top-quality nodes per sector.
+     *
+     * <p>Time complexity: O(V) for the scan + O(S × B log B) for bucket sorts,
+     * where S = SECTOR_COUNT and B = bucket size.
+     * Space complexity: O(V) for bucket storage.
      */
     private static List<List<RouteNode>> collectSectorNodes(
             RouteGraph graph,
@@ -198,6 +202,7 @@ public final class CandidateSelector {
         }
         return result;
     }
+
 
     /**
      * Adds 2-waypoint sets where the two anchors are approximately opposite each other
@@ -333,6 +338,11 @@ public final class CandidateSelector {
      * Picks the best routable node near {@code point} within a hard search radius of
      * {@code searchRadiusM}. Ranking is by route quality only — not quality minus distance — so a
      * far-but-high-quality attractor cannot pull the waypoint away from its intended position.
+     *
+     * <p>Uses the KD-tree ring query to restrict the candidate set to nodes within the search
+     * radius, avoiding an O(V) full-graph scan.
+     *
+     * <p>Time complexity: O(log V + hits) where hits = nodes within {@code searchRadiusM}.
      */
     static RouteNode pickBestNodeNear(
             RouteGraph graph,
@@ -342,10 +352,15 @@ public final class CandidateSelector {
             Set<String> excluded) {
         RouteNode best = null;
         double bestScore = Double.NEGATIVE_INFINITY;
-        for (RouteNode node : graph.nodeValues()) {
+        // Use KD-tree ring query: centre on midpoint, ring radius = searchRadiusM/2,
+        // tolerance = searchRadiusM/2. This covers the full disk [0, searchRadiusM].
+        List<com.routecraft.api.routing.graph.KdTree.RangeHit> hits =
+                graph.findNodesInRing(point, searchRadiusM / 2.0, searchRadiusM / 2.0 + 1);
+        for (com.routecraft.api.routing.graph.KdTree.RangeHit hit : hits) {
+            RouteNode node = hit.node();
             if (excluded.contains(node.id())) continue;
             if (graph.adjacent(node.id()).size() < 2) continue;
-            double distM = GeoUtils.distanceM(point, node.point());
+            double distM = hit.distanceM();
             if (distM > searchRadiusM) continue;
             // Within the cap, rank purely by quality (small proximity bonus to break ties)
             double score = routeQualityNearNode(graph, node.id(), preferences)
@@ -357,6 +372,7 @@ public final class CandidateSelector {
         }
         return best;
     }
+
 
     // -------------------------------------------------------------------------
     // Geometry helpers
