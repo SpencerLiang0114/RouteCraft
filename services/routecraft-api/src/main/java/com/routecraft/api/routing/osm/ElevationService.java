@@ -5,6 +5,7 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -16,6 +17,8 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -36,33 +39,67 @@ public class ElevationService {
     private static final int MAX_ELEVATION_POINTS = 800;
     private static final double ROUTE_ELEV_STEP_M = 25;
     private static final int ROUTE_ELEV_MAX_POINTS = 500;
+    private static final long MIN_REQUEST_TIMEOUT_MS = 1;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final String openMeteoEndpoint;
+    private final String openElevationEndpoint;
+    private final Duration lookupTimeout;
 
-    public ElevationService(ObjectMapper objectMapper) {
+    @Autowired
+    public ElevationService(
+            ObjectMapper objectMapper,
+            @Value("${routecraft.elevation.lookup-timeout-ms:375}") long lookupTimeoutMs) {
+        this(objectMapper, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(),
+                OPEN_METEO_ENDPOINT, OPEN_ELEVATION_ENDPOINT, Duration.ofMillis(lookupTimeoutMs));
+    }
+
+    ElevationService(ObjectMapper objectMapper,
+                     HttpClient httpClient,
+                     String openMeteoEndpoint,
+                     String openElevationEndpoint,
+                     Duration lookupTimeout) {
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        this.httpClient = httpClient;
+        this.openMeteoEndpoint = openMeteoEndpoint;
+        this.openElevationEndpoint = openElevationEndpoint;
+        this.lookupTimeout = lookupTimeout.isNegative() || lookupTimeout.isZero()
+                ? Duration.ofMillis(MIN_REQUEST_TIMEOUT_MS)
+                : lookupTimeout;
     }
 
     public Map<String, Double> fetchElevations(List<LatLng> points) {
+        if (points.isEmpty()) {
+            return Map.of();
+        }
+        List<LatLng> unique = uniqueCappedPoints(points);
+        Map<String, Double> result = new HashMap<>();
+        long deadlineNanos = System.nanoTime() + lookupTimeout.toNanos();
         try {
-            return fetchOpenMeteo(points);
+            fetchOpenMeteo(unique, result, deadlineNanos);
+            return result;
+        } catch (ElevationLookupTimedOutException ex) {
+            log.debug("Elevation lookup timed out after {}; skipping remaining nodes.", lookupTimeout);
+            return result;
         } catch (Exception ex) {
             log.debug("Open-Meteo elevation failed, falling back: {}", ex.getMessage());
             try {
-                return fetchOpenElevation(points);
+                fetchOpenElevation(unique, result, deadlineNanos);
             } catch (Exception fallbackEx) {
-                log.warn("Both elevation providers failed: {}", fallbackEx.getMessage());
-                return Map.of();
+                if (isTimeout(fallbackEx)) {
+                    log.debug("Elevation lookup timed out after {}; skipping remaining nodes.", lookupTimeout);
+                } else {
+                    log.warn("Both elevation providers failed: {}", fallbackEx.getMessage());
+                }
             }
         }
+        return result;
     }
 
-    private Map<String, Double> fetchOpenMeteo(List<LatLng> points) throws Exception {
-        List<LatLng> unique = uniqueCappedPoints(points);
-        Map<String, Double> result = new HashMap<>();
+    private void fetchOpenMeteo(List<LatLng> unique, Map<String, Double> result, long deadlineNanos) throws Exception {
         for (int i = 0; i < unique.size(); i += 100) {
+            Duration requestTimeout = remainingTimeout(deadlineNanos);
             List<LatLng> chunk = unique.subList(i, Math.min(unique.size(), i + 100));
             StringBuilder lats = new StringBuilder();
             StringBuilder lngs = new StringBuilder();
@@ -77,8 +114,8 @@ public class ElevationService {
             String params = "latitude=" + URLEncoder.encode(lats.toString(), StandardCharsets.UTF_8)
                     + "&longitude=" + URLEncoder.encode(lngs.toString(), StandardCharsets.UTF_8);
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(OPEN_METEO_ENDPOINT + "?" + params))
-                    .timeout(Duration.ofSeconds(8))
+                    .uri(URI.create(openMeteoEndpoint + "?" + params))
+                    .timeout(requestTimeout)
                     .GET()
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -95,13 +132,11 @@ public class ElevationService {
                 }
             }
         }
-        return result;
     }
 
-    private Map<String, Double> fetchOpenElevation(List<LatLng> points) throws Exception {
-        List<LatLng> unique = uniqueCappedPoints(points);
-        Map<String, Double> result = new HashMap<>();
+    private void fetchOpenElevation(List<LatLng> unique, Map<String, Double> result, long deadlineNanos) throws Exception {
         for (int i = 0; i < unique.size(); i += 200) {
+            Duration requestTimeout = remainingTimeout(deadlineNanos);
             List<LatLng> chunk = unique.subList(i, Math.min(unique.size(), i + 200));
             ObjectNode payload = objectMapper.createObjectNode();
             ArrayNode locations = payload.putArray("locations");
@@ -111,8 +146,8 @@ public class ElevationService {
                 loc.put("longitude", pt.lng());
             }
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(OPEN_ELEVATION_ENDPOINT))
-                    .timeout(Duration.ofSeconds(10))
+                    .uri(URI.create(openElevationEndpoint))
+                    .timeout(requestTimeout)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload), StandardCharsets.UTF_8))
                     .build();
@@ -131,7 +166,19 @@ public class ElevationService {
                 }
             }
         }
-        return result;
+    }
+
+    private static Duration remainingTimeout(long deadlineNanos) {
+        long remainingNanos = deadlineNanos - System.nanoTime();
+        if (remainingNanos <= 0) {
+            throw new ElevationLookupTimedOutException();
+        }
+        long remainingMillis = Math.max(MIN_REQUEST_TIMEOUT_MS, Duration.ofNanos(remainingNanos).toMillis());
+        return Duration.ofMillis(remainingMillis);
+    }
+
+    private static boolean isTimeout(Exception ex) {
+        return ex instanceof ElevationLookupTimedOutException || ex instanceof HttpTimeoutException;
     }
 
     private static List<LatLng> uniqueCappedPoints(List<LatLng> points) {
@@ -326,5 +373,8 @@ public class ElevationService {
     }
 
     private record RawSample(double distanceKm, Double elevM) {
+    }
+
+    private static final class ElevationLookupTimedOutException extends RuntimeException {
     }
 }
