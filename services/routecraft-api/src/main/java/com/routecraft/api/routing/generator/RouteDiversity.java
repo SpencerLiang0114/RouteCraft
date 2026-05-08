@@ -99,7 +99,8 @@ public final class RouteDiversity {
     private static Map<String, Double> buildEdgeDistanceMap(GeneratedRouteCandidate route) {
         Map<String, Double> map = new java.util.HashMap<>();
         for (RouteEdge edge : route.edges()) {
-            map.merge(edge.undirectedKey(), edge.distanceM(), Double::sum);
+            String key = edge.undirectedKey();
+            map.put(key, map.getOrDefault(key, 0.0) + edge.distanceM());
         }
         return map;
     }

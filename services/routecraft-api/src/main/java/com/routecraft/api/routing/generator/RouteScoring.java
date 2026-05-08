@@ -72,16 +72,11 @@ public final class RouteScoring {
         if (overrides != null) {
             weights.putAll(overrides);
         }
-        weights.merge(Component.PARK,
-                GeoUtils.normalizePreference(preferences.parkPreference()) * 0.05, Double::sum);
-        weights.merge(Component.SHADE,
-                GeoUtils.normalizePreference(preferences.shadePreference()) * 0.05, Double::sum);
-        weights.merge(Component.SAFETY,
-                GeoUtils.normalizePreference(preferences.safetyPreference()) * 0.06, Double::sum);
-        weights.merge(Component.EXPLORATION,
-                GeoUtils.normalizePreference(preferences.explorationPreference()) * 0.05, Double::sum);
-        weights.merge(Component.ELEVATION,
-                GeoUtils.normalizePreference(preferences.elevationPreference()) * 0.04, Double::sum);
+        addWeight(weights, Component.PARK, GeoUtils.normalizePreference(preferences.parkPreference()) * 0.05);
+        addWeight(weights, Component.SHADE, GeoUtils.normalizePreference(preferences.shadePreference()) * 0.05);
+        addWeight(weights, Component.SAFETY, GeoUtils.normalizePreference(preferences.safetyPreference()) * 0.06);
+        addWeight(weights, Component.EXPLORATION, GeoUtils.normalizePreference(preferences.explorationPreference()) * 0.05);
+        addWeight(weights, Component.ELEVATION, GeoUtils.normalizePreference(preferences.elevationPreference()) * 0.04);
 
         double total = 0;
         for (double v : weights.values()) {
@@ -93,5 +88,9 @@ public final class RouteScoring {
             }
         }
         return weights;
+    }
+
+    private static void addWeight(EnumMap<Component, Double> weights, Component component, double delta) {
+        weights.put(component, weights.getOrDefault(component, 0.0) + delta);
     }
 }

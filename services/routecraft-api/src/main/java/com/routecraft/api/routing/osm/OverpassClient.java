@@ -128,7 +128,7 @@ public class OverpassClient {
         Map<String, String> tags = new HashMap<>();
         node.properties().forEach(entry -> {
             JsonNode value = entry.getValue();
-            if (value != null && value.isTextual()) {
+            if (value != null && value.isString()) {
                 tags.put(entry.getKey(), value.asString());
             }
         });

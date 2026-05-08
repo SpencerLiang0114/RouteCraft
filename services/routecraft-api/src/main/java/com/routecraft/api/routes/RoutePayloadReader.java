@@ -94,10 +94,10 @@ class RoutePayloadReader {
         if (value == null || value.isNull()) {
             return null;
         }
-        if (!value.isTextual()) {
+        if (!value.isString()) {
             throw new IllegalArgumentException(field + " must be a string.");
         }
-        return value.asText();
+        return value.asString();
     }
 
     private BigDecimal requiredDecimal(JsonNode payload, String field) {
@@ -136,11 +136,11 @@ class RoutePayloadReader {
         if (value == null || value.isNull()) {
             return null;
         }
-        if (!value.isTextual()) {
+        if (!value.isString()) {
             throw new IllegalArgumentException("savedAt must be an ISO timestamp.");
         }
         try {
-            return Instant.parse(value.asText());
+            return Instant.parse(value.asString());
         } catch (DateTimeParseException error) {
             throw new IllegalArgumentException("savedAt must be an ISO timestamp.");
         }

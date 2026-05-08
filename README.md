@@ -42,20 +42,40 @@ There is no root `package.json` and no npm workspaces — `cd apps/web` to run f
 
 ## Run Locally
 
+Use three terminals:
+
 ```bash
+# Terminal 1: database
+docker compose up postgres
+```
+
+```bash
+# Terminal 2: backend API
+cd services/routecraft-api
+./mvnw spring-boot:run
+```
+
+```bash
+# Terminal 3: frontend
 cd apps/web
 cp .env.example .env.local
 npm install
-npm run dev:db     # cd ../.. && docker compose up postgres
-npm run dev:api    # cd ../../services/routecraft-api && ./mvnw spring-boot:run
-npm run dev        # next dev on :3000
+npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
 The Spring Boot API runs on [http://localhost:18080](http://localhost:18080). PostgreSQL/PostGIS runs on port `5432` with credentials from `docker-compose.yml`. Flyway applies `V1__routecraft_persistence.sql` and `V2__generated_route_batch_bbox.sql` on startup.
 
-Strava credentials are optional. Add them to `apps/web/.env.local` to enable live segment loading; without them the Strava flow falls back to local mock data.
+You can also run the database and API together from the repo root:
+
+```bash
+docker compose up --build
+```
+
+Then run the frontend separately from `apps/web` with `npm run dev`.
+
+Strava credentials are optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, and `STRAVA_REFRESH_TOKEN` in the backend environment to enable live segment loading; without them the Strava flow falls back to local mock data. The frontend `.env.local` only needs the API URL values from `.env.example`.
 
 ## Project Structure
 
@@ -63,10 +83,9 @@ Strava credentials are optional. Add them to `apps/web/.env.local` to enable liv
 | --- | --- | --- |
 | Pages | `apps/web/src/app/` | Next.js App Router pages |
 | UI components | `apps/web/src/components/` | Route planning, results, maps, controls |
-| Browser API clients | `apps/web/src/frontend/api/` | `client-only` fetch wrappers that call Spring Boot |
-| Next remaining server code | `apps/web/src/backend/` | Strava OAuth/segment proxy. Routing logic has moved out of TypeScript |
-| Geocoding/Strava proxies | `apps/web/src/app/api/geocode/`, `apps/web/src/app/api/strava/` | Thin proxies that hide third-party credentials |
+| Browser API clients | `apps/web/src/lib/api-client/` | Fetch wrappers that call Spring Boot |
 | Spring Boot API | `services/routecraft-api/src/main/java/com/routecraft/api/` | Public route generation API, persistence, OSM cache |
+| Geocoding/Strava endpoints | `services/routecraft-api/src/main/java/com/routecraft/api/routing/osm/` | Backend endpoints that hide third-party credentials |
 | Shared frontend logic | `apps/web/src/lib/` | GPX/KML parsing, exporting, scoring/normalising imported routes |
 | Flow state | `apps/web/src/store/` | Zustand store for transient route flow state |
 | Domain types | `apps/web/src/types/` | Shared route, preference, and metric types |

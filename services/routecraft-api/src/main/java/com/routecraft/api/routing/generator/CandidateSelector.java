@@ -1,9 +1,7 @@
 package com.routecraft.api.routing.generator;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -354,9 +352,9 @@ public final class CandidateSelector {
         double bestScore = Double.NEGATIVE_INFINITY;
         // Use KD-tree ring query: centre on midpoint, ring radius = searchRadiusM/2,
         // tolerance = searchRadiusM/2. This covers the full disk [0, searchRadiusM].
-        List<com.routecraft.api.routing.graph.KdTree.RangeHit> hits =
+        List<RouteGraph.RangeHit> hits =
                 graph.findNodesInRing(point, searchRadiusM / 2.0, searchRadiusM / 2.0 + 1);
-        for (com.routecraft.api.routing.graph.KdTree.RangeHit hit : hits) {
+        for (RouteGraph.RangeHit hit : hits) {
             RouteNode node = hit.node();
             if (excluded.contains(node.id())) continue;
             if (graph.adjacent(node.id()).size() < 2) continue;

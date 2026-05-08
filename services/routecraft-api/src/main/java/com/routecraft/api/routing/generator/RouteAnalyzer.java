@@ -7,7 +7,6 @@ import java.util.Set;
 import java.util.function.ToDoubleFunction;
 
 import com.routecraft.api.routing.graph.GeoUtils;
-import com.routecraft.api.routing.graph.PathResult;
 import com.routecraft.api.routing.graph.RouteEdge;
 import com.routecraft.api.routing.model.ActivityType;
 import com.routecraft.api.routing.model.Difficulty;

@@ -60,7 +60,7 @@ public final class OsmGraphBuilder {
         Map<Long, Integer> nodeUseCount = new HashMap<>();
         for (OsmElement way : highwayWays) {
             for (Long nodeId : way.nodesOrEmpty()) {
-                nodeUseCount.merge(nodeId, 1, Integer::sum);
+                nodeUseCount.put(nodeId, nodeUseCount.getOrDefault(nodeId, 0) + 1);
             }
         }
 

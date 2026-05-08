@@ -53,11 +53,16 @@ public final class RouteGraph {
         return kdTree.nearest(point);
     }
 
-    public List<KdTree.RangeHit> findNodesInRing(LatLng point, double radiusM, double toleranceM) {
+    public List<RangeHit> findNodesInRing(LatLng point, double radiusM, double toleranceM) {
         List<KdTree.RangeHit> results = new ArrayList<>();
         kdTree.rangeRing(point, radiusM, toleranceM, results);
-        results.sort((a, b) -> Double.compare(a.distanceM(), b.distanceM()));
-        return results;
+        return results.stream()
+                .map(hit -> new RangeHit(hit.node(), hit.distanceM()))
+                .sorted((a, b) -> Double.compare(a.distanceM(), b.distanceM()))
+                .toList();
+    }
+
+    public record RangeHit(RouteNode node, double distanceM) {
     }
 
     public static List<RouteEdge> bidirectional(List<RouteEdge> edges) {

@@ -371,7 +371,8 @@ public final class Pathfinding {
         }
         Map<String, Integer> useCount = new HashMap<>();
         for (RouteEdge edge : path.edges()) {
-            useCount.merge(edge.undirectedKey(), 1, Integer::sum);
+            String key = edge.undirectedKey();
+            useCount.put(key, useCount.getOrDefault(key, 0) + 1);
         }
         double overlap = 0;
         for (RouteEdge edge : path.edges()) {

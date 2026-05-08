@@ -131,10 +131,9 @@ public final class LoopGenerator {
 
                 // Accumulate additive penalties (scaled by edge distance) for subsequent legs
                 for (RouteEdge edge : segment.get().edges()) {
-                    edgePenalties.merge(
-                            edge.undirectedKey(),
-                            PENALTY_PER_METRE * edge.distanceM(),
-                            Double::sum);
+                    String key = edge.undirectedKey();
+                    edgePenalties.put(key,
+                            edgePenalties.getOrDefault(key, 0.0) + PENALTY_PER_METRE * edge.distanceM());
                 }
             }
 
@@ -240,21 +239,20 @@ public final class LoopGenerator {
 
             // Use the KD-tree to find only the nodes within the bounding circle —
             // avoids iterating all V graph nodes (was O(V × P) before).
-            List<com.routecraft.api.routing.graph.KdTree.RangeHit> nearby =
+            List<RouteGraph.RangeHit> nearby =
                     graph.findNodesInRing(corridorOrigin, searchRadiusM / 2, searchRadiusM / 2 + 1);
             // findNodesInRing returns a ring; supplement with a nearest-node fallback for
             // nodes very close to the origin (inside the inner radius hole).
             // In practice we simply iterate the nearby candidates and run the full corridor
             // check on each — this is correct and cheap because |nearby| ≪ |V|.
-            for (com.routecraft.api.routing.graph.KdTree.RangeHit hit : nearby) {
+            for (RouteGraph.RangeHit hit : nearby) {
                 RouteNode node = hit.node();
                 if (isInCorridor(node.point(), corridorPoints)) {
                     // Penalise all edges connected to this node
                     for (RouteEdge edge : graph.adjacent(node.id())) {
-                        result.merge(
-                                edge.undirectedKey(),
-                                SPATIAL_NODE_PENALTY * edge.distanceM(),
-                                Double::sum);
+                        String key = edge.undirectedKey();
+                        result.put(key,
+                                result.getOrDefault(key, 0.0) + SPATIAL_NODE_PENALTY * edge.distanceM());
                     }
                 }
             }
