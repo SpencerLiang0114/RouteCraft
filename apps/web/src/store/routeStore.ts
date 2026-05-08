@@ -2,8 +2,12 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+import { get, set as idbSet, del } from "idb-keyval";
 import { loadSavedRoutes as fetchSavedRoutes, saveRoute as persistSavedRoute } from "@/lib/api-client/savedRoutes";
 import type { RouteCandidate, SavedRoute } from "@/types/route";
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 const routecraftStorageKey = "routecraft-flow";
 
@@ -27,8 +31,20 @@ const noopStorage: StateStorage = {
   removeItem: () => undefined,
 };
 
+const indexedDBStorage: StateStorage = {
+  getItem: async (name): Promise<string | null> => {
+    return (await get(name)) || null;
+  },
+  setItem: async (name, value): Promise<void> => {
+    await idbSet(name, value);
+  },
+  removeItem: async (name): Promise<void> => {
+    await del(name);
+  },
+};
+
 const storage = createJSONStorage<PersistedRouteFlowState>(() =>
-  typeof window === "undefined" ? noopStorage : window.localStorage,
+  typeof window === "undefined" ? noopStorage : indexedDBStorage,
 );
 
 export const useRouteStore = create<RouteFlowState>()(
@@ -53,26 +69,32 @@ export const useRouteStore = create<RouteFlowState>()(
         } catch (error) {
           set({
             savedRoutesStatus: "error",
-            savedRoutesError: error instanceof Error ? error.message : "Could not load saved routes.",
+            savedRoutesError: getErrorMessage(error, "Could not load saved routes."),
           });
         }
       },
       saveRoute: async (route) => {
         try {
           const savedRoute = await persistSavedRoute(route);
-          set((state) => ({
-            savedRoutes: [
-              savedRoute,
-              ...state.savedRoutes.filter((existing) => existing.id !== savedRoute.id),
-            ],
-            savedRoutesStatus: "ready",
-            savedRoutesError: null,
-          }));
+          set((state) => {
+            const index = state.savedRoutes.findIndex((existing) => existing.id === savedRoute.id);
+            const nextRoutes = [...state.savedRoutes];
+            if (index >= 0) {
+              nextRoutes[index] = savedRoute;
+            } else {
+              nextRoutes.unshift(savedRoute);
+            }
+            return {
+              savedRoutes: nextRoutes,
+              savedRoutesStatus: "ready",
+              savedRoutesError: null,
+            };
+          });
           return savedRoute;
         } catch (error) {
           set({
             savedRoutesStatus: "error",
-            savedRoutesError: error instanceof Error ? error.message : "Could not save route.",
+            savedRoutesError: getErrorMessage(error, "Could not save route."),
           });
           throw error;
         }

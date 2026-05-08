@@ -2,7 +2,11 @@ package com.routecraft.api.routing;
 
 import java.util.List;
 
+import java.util.Map;
+
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,18 +32,6 @@ public class RoutingController {
 
     @PostMapping("/generate")
     public RoutesResponse generate(@Valid @RequestBody UserPreferences preferences) {
-        validate(preferences);
-        List<RouteCandidate> routes = generationService.generate(preferences);
-        if (!routes.isEmpty()) {
-            batchRepository.saveTypedBatch(preferences, routes);
-        }
-        return new RoutesResponse(routes);
-    }
-
-    private static void validate(UserPreferences preferences) {
-        if (preferences.activity() == null || preferences.routeType() == null) {
-            throw new IllegalArgumentException("activity and routeType are required.");
-        }
         LatLng startPoint = preferences.startPoint();
         if (startPoint == null || !startPoint.isValid()) {
             throw new IllegalArgumentException("Invalid or missing start coordinates.");
@@ -48,6 +40,17 @@ public class RoutingController {
         if (endPoint != null && !endPoint.isValid()) {
             throw new IllegalArgumentException("Invalid end coordinates.");
         }
+
+        List<RouteCandidate> routes = generationService.generate(preferences);
+        if (!routes.isEmpty()) {
+            batchRepository.saveTypedBatch(preferences, routes);
+        }
+        return new RoutesResponse(routes);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
     }
 
     public record RoutesResponse(List<RouteCandidate> routes) {

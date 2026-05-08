@@ -93,9 +93,13 @@ public class StravaService {
             String url = String.format("https://www.strava.com/api/v3/segments/explore?bounds=%f,%f,%f,%f&activity_type=%s",
                     bounds[0], bounds[1], bounds[2], bounds[3], act);
             
-            StravaExplorerResponse response = getCachedOrFetch(url);
-            if (response != null && response.segments() != null) {
-                segments.addAll(normalize(response.segments(), act));
+            try {
+                StravaExplorerResponse response = getCachedOrFetch(url);
+                if (response != null && response.segments() != null) {
+                    segments.addAll(normalize(response.segments(), act));
+                }
+            } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
+                return new StravaExploreResult("mock", List.of(), "Strava API rate limit reached, falling back to mock routes.");
             }
         }
 
@@ -124,6 +128,9 @@ public class StravaService {
                 cache.put(url, new CachedResponse(System.currentTimeMillis() + CACHE_TTL_MS, response));
             }
             return response;
+        } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
+            logger.warn("Strava API rate limit reached");
+            throw e;
         } catch (Exception e) {
             logger.error("Failed to fetch Strava segments", e);
             return null;

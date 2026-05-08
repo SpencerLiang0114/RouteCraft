@@ -4,8 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:api": "cd ../../services/routecraft-api && ./mvnw spring-boot:run",
-    "dev:db": "cd ../.. && docker compose up postgres",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -13,12 +11,12 @@
   "dependencies": {
     "@types/leaflet": "^1.9.21",
     "client-only": "^0.0.1",
+    "idb-keyval": "^6.2.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "server-only": "^0.0.1",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
