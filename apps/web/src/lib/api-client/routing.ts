@@ -5,7 +5,7 @@ import type { RouteCandidate, UserPreferences } from "@/types/route";
 const DEFAULT_ROUTECRAFT_API_URL = "http://localhost:18080";
 
 export function apiUrl(path: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_ROUTECRAFT_API_URL ?? DEFAULT_ROUTECRAFT_API_URL;
+  const baseUrl = process.env.NEXT_PUBLIC_ROUTECRAFT_API_URL?.trim() || DEFAULT_ROUTECRAFT_API_URL;
   return `${baseUrl.replace(/\/$/, "")}${path}`;
 }
 
