@@ -3,6 +3,7 @@ package com.routecraft.api.routing.generator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,16 @@ import com.routecraft.api.routing.model.UserPreferences;
 public final class CandidateSelector {
 
     public static final LatLng FALLBACK_START = new LatLng(40.0149, -105.2705);
+
+    /** Minimum angular separation (degrees) between two waypoints around the start to avoid
+     *  degenerate near-collinear triangles. */
+    private static final double MIN_WAYPOINT_ANGLE_DEG = 25.0;
+
+    /** Number of directional sectors used for quadrant-based anchor selection. */
+    private static final int SECTOR_COUNT = 8;
+
+    /** Max candidates to evaluate per sector. */
+    private static final int TOP_NODES_PER_SECTOR = 4;
 
     private CandidateSelector() {
     }
@@ -74,6 +85,12 @@ public final class CandidateSelector {
             if (bs != as) {
                 return Double.compare(bs, as);
             }
+            // Secondary: prefer closer distance match
+            double adist = b.candidate().metrics().distanceScore();
+            double bdist = a.candidate().metrics().distanceScore();
+            if (adist != bdist) {
+                return Double.compare(adist, bdist);
+            }
             return Double.compare(
                     Math.abs(a.candidate().elevationGainM()),
                     Math.abs(b.candidate().elevationGainM()));
@@ -81,67 +98,246 @@ public final class CandidateSelector {
         return sorted;
     }
 
+    // -------------------------------------------------------------------------
+    // Waypoint-set generation — quadrant-based anchor selection
+    // -------------------------------------------------------------------------
+
+    /**
+     * Generates loop waypoint sets using quadrant-based anchor discovery.
+     *
+     * <p>The graph is partitioned into {@value #SECTOR_COUNT} directional sectors around the
+     * start. The top-quality nodes per sector are collected and assembled into 2- and 3-waypoint
+     * sets using equilateral-triangle (120°) and semicircular (180°) geometric patterns.
+     *
+     * <p>Sets where the waypoints form a degenerate (near-collinear) triangle are skipped before
+     * any pathfinding is attempted.
+     */
     public static List<WaypointSet> generateLoopWaypointSets(
             UserPreferences preferences,
             RouteGraph graph,
             RouteNode startNode) {
         double targetDistanceM = GeoUtils.resolveTargetDistanceKm(preferences) * 1000;
-        double twoWpBaseRadiusM = Math.max(450, targetDistanceM / 4.5);
-        double threeWpBaseRadiusM = Math.max(300, targetDistanceM / 6);
-        double[] bearings = {0, 45, 90, 135, 180, 225, 270, 315};
+
+        // Radius band: we search for anchors within [minR, maxR] from start.
+        // For a loop the straight-line radius ≈ perimeter / (2π) for a circle,
+        // but real road loops have a winding factor of ~1.3–1.6, so radius ≈ D / 5.5.
+        double baseRadiusM = Math.max(400, targetDistanceM / 5.2);
+
+        // Collect the best routable nodes per compass sector
+        List<List<RouteNode>> sectorNodes = collectSectorNodes(graph, startNode, preferences, baseRadiusM);
+
         List<WaypointSet> sets = new ArrayList<>();
 
-        for (double radiusM : new double[]{twoWpBaseRadiusM * 0.9, twoWpBaseRadiusM, twoWpBaseRadiusM * 1.1}) {
-            for (double bearing : bearings) {
-                Set<String> excluded = new HashSet<>();
-                excluded.add(startNode.id());
-                RouteNode first = pickBestNodeNear(graph,
-                        GeoUtils.destinationPoint(startNode.point(), bearing, radiusM * 0.92),
-                        preferences, excluded);
-                if (first == null) continue;
-                excluded.add(first.id());
+        // --- 2-waypoint sets (semicircular — anchors ~180° apart) ---
+        addSemicircularSets(sets, sectorNodes, startNode, graph, preferences, baseRadiusM);
 
-                RouteNode second = pickBestNodeNear(graph,
-                        GeoUtils.destinationPoint(startNode.point(), (bearing + 100) % 360, radiusM * 1.04),
-                        preferences, excluded);
-                if (second != null) {
-                    RouteStrategy strategy = ((int) bearing) % 90 == 0 ? RouteStrategy.RECOMMENDED : RouteStrategy.EXPLORATION;
-                    sets.add(new WaypointSet(List.of(first.id(), second.id()), strategy));
-                }
-            }
-        }
+        // --- 2-waypoint sets (wide — anchors ~120° apart) ---
+        addWideSets(sets, sectorNodes, startNode, graph, preferences, baseRadiusM);
 
-        for (double radiusM : new double[]{threeWpBaseRadiusM * 0.9, threeWpBaseRadiusM, threeWpBaseRadiusM * 1.1}) {
-            for (double bearing : bearings) {
-                Set<String> excluded = new HashSet<>();
-                excluded.add(startNode.id());
-                RouteNode first = pickBestNodeNear(graph,
-                        GeoUtils.destinationPoint(startNode.point(), bearing, radiusM * 0.92),
-                        preferences, excluded);
-                if (first == null) continue;
-                excluded.add(first.id());
+        // --- 3-waypoint equilateral sets (anchors ~120° apart) ---
+        addEquilateralSets(sets, sectorNodes, startNode, graph, preferences, baseRadiusM);
 
-                RouteNode second = pickBestNodeNear(graph,
-                        GeoUtils.destinationPoint(startNode.point(), (bearing + 100) % 360, radiusM * 1.04),
-                        preferences, excluded);
-                if (second == null) continue;
-                excluded.add(second.id());
-
-                RouteNode third = pickBestNodeNear(graph,
-                        GeoUtils.destinationPoint(startNode.point(), (bearing + 185) % 360, radiusM * 0.82),
-                        preferences, excluded);
-                if (third != null) {
-                    sets.add(new WaypointSet(List.of(first.id(), second.id(), third.id()), RouteStrategy.PARK));
-                }
-            }
+        // Fallback: if we collected too few sets, supplement with a simple bearing grid
+        if (sets.size() < 6) {
+            addFallbackBearingSets(sets, graph, startNode, preferences, baseRadiusM);
         }
 
         return sets;
     }
 
-    private static RouteNode pickBestNodeNear(
+    /**
+     * Partitions all graph nodes into {@value #SECTOR_COUNT} directional sectors around the
+     * start point, keeping only nodes within a reasonable radius band and returning the
+     * top-quality nodes per sector.
+     */
+    private static List<List<RouteNode>> collectSectorNodes(
+            RouteGraph graph,
+            RouteNode startNode,
+            UserPreferences preferences,
+            double baseRadiusM) {
+
+        double minRadiusM = baseRadiusM * 0.55;
+        double maxRadiusM = baseRadiusM * 1.55;
+
+        // Each sector bucket: list of (node, quality, distError)
+        @SuppressWarnings("unchecked")
+        List<NodeQuality>[] buckets = new List[SECTOR_COUNT];
+        for (int i = 0; i < SECTOR_COUNT; i++) {
+            buckets[i] = new ArrayList<>();
+        }
+
+        double sectorWidth = 360.0 / SECTOR_COUNT;
+
+        for (RouteNode node : graph.nodeValues()) {
+            if (node.id().equals(startNode.id())) continue;
+            if (graph.adjacent(node.id()).size() < 2) continue;
+
+            double distM = GeoUtils.distanceM(startNode.point(), node.point());
+            if (distM < minRadiusM || distM > maxRadiusM) continue;
+
+            double bearing = GeoUtils.bearingDegrees(startNode.point(), node.point());
+            int sector = (int) (bearing / sectorWidth) % SECTOR_COUNT;
+
+            double quality = routeQualityNearNode(graph, node.id(), preferences);
+            // Prefer nodes close to the ideal radius (minimise radial error)
+            double radialError = Math.abs(distM - baseRadiusM) / baseRadiusM;
+            double compositeScore = quality - radialError * 0.4;
+
+            buckets[sector].add(new NodeQuality(node, compositeScore));
+        }
+
+        List<List<RouteNode>> result = new ArrayList<>(SECTOR_COUNT);
+        for (int i = 0; i < SECTOR_COUNT; i++) {
+            List<NodeQuality> bucket = buckets[i];
+            bucket.sort(Comparator.comparingDouble((NodeQuality nq) -> nq.score).reversed());
+            List<RouteNode> top = new ArrayList<>();
+            for (int j = 0; j < Math.min(TOP_NODES_PER_SECTOR, bucket.size()); j++) {
+                top.add(bucket.get(j).node);
+            }
+            result.add(top);
+        }
+        return result;
+    }
+
+    /**
+     * Adds 2-waypoint sets where the two anchors are approximately opposite each other
+     * (semicircular pattern — ~4 sectors apart, 180°).
+     */
+    private static void addSemicircularSets(
+            List<WaypointSet> sets,
+            List<List<RouteNode>> sectorNodes,
+            RouteNode startNode,
+            RouteGraph graph,
+            UserPreferences preferences,
+            double baseRadiusM) {
+        int half = SECTOR_COUNT / 2;
+        for (int i = 0; i < half; i++) {
+            int opposite = (i + half) % SECTOR_COUNT;
+            for (RouteNode first : sectorNodes.get(i)) {
+                for (RouteNode second : sectorNodes.get(opposite)) {
+                    if (first.id().equals(second.id())) continue;
+                    if (!isNonDegenerate(startNode.point(), first.point(), second.point())) continue;
+                    RouteStrategy strategy = (i % 2 == 0) ? RouteStrategy.RECOMMENDED : RouteStrategy.EXPLORATION;
+                    sets.add(new WaypointSet(List.of(first.id(), second.id()), strategy));
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds 2-waypoint sets where the two anchors are ~120° apart (wide-loop pattern).
+     */
+    private static void addWideSets(
+            List<WaypointSet> sets,
+            List<List<RouteNode>> sectorNodes,
+            RouteNode startNode,
+            RouteGraph graph,
+            UserPreferences preferences,
+            double baseRadiusM) {
+        // 120° apart ≈ SECTOR_COUNT/3 sectors apart
+        int step = Math.max(2, SECTOR_COUNT / 3);
+        for (int i = 0; i < SECTOR_COUNT; i++) {
+            int j = (i + step) % SECTOR_COUNT;
+            for (RouteNode first : sectorNodes.get(i)) {
+                for (RouteNode second : sectorNodes.get(j)) {
+                    if (first.id().equals(second.id())) continue;
+                    if (!isNonDegenerate(startNode.point(), first.point(), second.point())) continue;
+                    sets.add(new WaypointSet(List.of(first.id(), second.id()), RouteStrategy.EXPLORATION));
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds 3-waypoint equilateral sets where anchors are spaced ~120° apart.
+     */
+    private static void addEquilateralSets(
+            List<WaypointSet> sets,
+            List<List<RouteNode>> sectorNodes,
+            RouteNode startNode,
+            RouteGraph graph,
+            UserPreferences preferences,
+            double baseRadiusM) {
+        int step = Math.max(2, SECTOR_COUNT / 3);
+        for (int i = 0; i < SECTOR_COUNT; i++) {
+            int j = (i + step) % SECTOR_COUNT;
+            int k = (i + 2 * step) % SECTOR_COUNT;
+            List<RouteNode> si = sectorNodes.get(i);
+            List<RouteNode> sj = sectorNodes.get(j);
+            List<RouteNode> sk = sectorNodes.get(k);
+            if (si.isEmpty() || sj.isEmpty() || sk.isEmpty()) continue;
+
+            // Take the best node from each of the three sectors
+            RouteNode first = si.get(0);
+            RouteNode second = sj.get(0);
+            RouteNode third = sk.get(0);
+
+            if (first.id().equals(second.id()) || first.id().equals(third.id())
+                    || second.id().equals(third.id())) continue;
+
+            if (!isNonDegenerate(startNode.point(), first.point(), second.point())) continue;
+            if (!isNonDegenerate(startNode.point(), first.point(), third.point())) continue;
+            if (!isNonDegenerate(second.point(), first.point(), third.point())) continue;
+
+            // Also try mixing the 2nd-best alternatives for diversity
+            sets.add(new WaypointSet(List.of(first.id(), second.id(), third.id()), RouteStrategy.PARK));
+
+            if (si.size() > 1) {
+                RouteNode alt = si.get(1);
+                if (!alt.id().equals(second.id()) && !alt.id().equals(third.id())
+                        && isNonDegenerate(startNode.point(), alt.point(), second.point())
+                        && isNonDegenerate(startNode.point(), alt.point(), third.point())) {
+                    sets.add(new WaypointSet(List.of(alt.id(), second.id(), third.id()), RouteStrategy.PARK));
+                }
+            }
+        }
+    }
+
+    /**
+     * Fallback: simple 8-bearing × 3-radius grid, used when quadrant discovery yields too few sets.
+     * This mirrors the old algorithm but with the improved radius cap on {@link #pickBestNodeNear}.
+     */
+    private static void addFallbackBearingSets(
+            List<WaypointSet> sets,
+            RouteGraph graph,
+            RouteNode startNode,
+            UserPreferences preferences,
+            double baseRadiusM) {
+        double[] bearings = {0, 45, 90, 135, 180, 225, 270, 315};
+        double[] radiiScale = {0.85, 1.0, 1.15};
+        for (double radiusM : radiiScale) {
+            double r = baseRadiusM * radiusM;
+            for (double bearing : bearings) {
+                Set<String> excluded = new HashSet<>();
+                excluded.add(startNode.id());
+                RouteNode first = pickBestNodeNear(graph,
+                        GeoUtils.destinationPoint(startNode.point(), bearing, r * 0.90),
+                        r * 0.35, preferences, excluded);
+                if (first == null) continue;
+                excluded.add(first.id());
+                RouteNode second = pickBestNodeNear(graph,
+                        GeoUtils.destinationPoint(startNode.point(), (bearing + 120) % 360, r),
+                        r * 0.35, preferences, excluded);
+                if (second == null) continue;
+                if (!isNonDegenerate(startNode.point(), first.point(), second.point())) continue;
+                sets.add(new WaypointSet(List.of(first.id(), second.id()), RouteStrategy.RECOMMENDED));
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Node picking helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Picks the best routable node near {@code point} within a hard search radius of
+     * {@code searchRadiusM}. Ranking is by route quality only — not quality minus distance — so a
+     * far-but-high-quality attractor cannot pull the waypoint away from its intended position.
+     */
+    static RouteNode pickBestNodeNear(
             RouteGraph graph,
             LatLng point,
+            double searchRadiusM,
             UserPreferences preferences,
             Set<String> excluded) {
         RouteNode best = null;
@@ -149,8 +345,11 @@ public final class CandidateSelector {
         for (RouteNode node : graph.nodeValues()) {
             if (excluded.contains(node.id())) continue;
             if (graph.adjacent(node.id()).size() < 2) continue;
-            double score = routeQualityNearNode(graph, node.id(), preferences) * 1000
-                    - GeoUtils.distanceM(point, node.point());
+            double distM = GeoUtils.distanceM(point, node.point());
+            if (distM > searchRadiusM) continue;
+            // Within the cap, rank purely by quality (small proximity bonus to break ties)
+            double score = routeQualityNearNode(graph, node.id(), preferences)
+                    - distM / searchRadiusM * 0.1;
             if (score > bestScore) {
                 bestScore = score;
                 best = node;
@@ -159,7 +358,27 @@ public final class CandidateSelector {
         return best;
     }
 
-    private static double routeQualityNearNode(RouteGraph graph, String nodeId, UserPreferences preferences) {
+    // -------------------------------------------------------------------------
+    // Geometry helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns {@code true} when the three points form a non-degenerate loop triangle,
+     * i.e. the bearing from {@code pivot} to each of {@code a} and {@code b} differs by at least
+     * {@value #MIN_WAYPOINT_ANGLE_DEG} degrees. Degenerate sets (collinear or near-collinear)
+     * would produce disguised out-and-back routes.
+     */
+    static boolean isNonDegenerate(LatLng pivot, LatLng a, LatLng b) {
+        double bearingA = GeoUtils.bearingDegrees(pivot, a);
+        double bearingB = GeoUtils.bearingDegrees(pivot, b);
+        return GeoUtils.angularDifference(bearingA, bearingB) >= MIN_WAYPOINT_ANGLE_DEG;
+    }
+
+    // -------------------------------------------------------------------------
+    // Quality scoring
+    // -------------------------------------------------------------------------
+
+    static double routeQualityNearNode(RouteGraph graph, String nodeId, UserPreferences preferences) {
         List<RouteEdge> edges = graph.adjacent(nodeId);
         if (edges.isEmpty()) {
             return 0;
@@ -185,6 +404,10 @@ public final class CandidateSelector {
         }
         return total / edges.size();
     }
+
+    // -------------------------------------------------------------------------
+    // Out-and-back destination selection (unchanged)
+    // -------------------------------------------------------------------------
 
     public static List<RouteNode> findOutAndBackDestinations(
             UserPreferences preferences,
@@ -269,6 +492,10 @@ public final class CandidateSelector {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Internal data types
+    // -------------------------------------------------------------------------
+
     public record WaypointSet(List<String> nodeIds, RouteStrategy strategy) {
         public WaypointSet {
             nodeIds = List.copyOf(nodeIds);
@@ -276,5 +503,8 @@ public final class CandidateSelector {
     }
 
     private record Candidate(RouteNode node, double score, double distanceErrorM) {
+    }
+
+    private record NodeQuality(RouteNode node, double score) {
     }
 }

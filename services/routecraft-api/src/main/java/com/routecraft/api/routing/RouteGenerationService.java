@@ -95,9 +95,12 @@ public class RouteGenerationService {
         }
 
         List<GeneratedRouteCandidate> ranked = CandidateSelector.rankRoutes(pool);
-        List<GeneratedRouteCandidate> diverse = RouteDiversity.filterDiverseRoutes(ranked, 0.7);
+        // Centroid threshold: routes whose centroids are within 10 % of the target distance
+        // are treated as spatial duplicates regardless of edge-ID overlap.
+        double centroidThresholdKm = targetDistanceKm * 0.10;
+        List<GeneratedRouteCandidate> diverse = RouteDiversity.filterDiverseRoutes(ranked, 0.65, centroidThresholdKm);
         if (diverse.size() < 3) {
-            diverse = RouteDiversity.filterDiverseRoutes(ranked, 0.9);
+            diverse = RouteDiversity.filterDiverseRoutes(ranked, 0.85, centroidThresholdKm);
         }
 
         List<GeneratedRouteCandidate> labeled = RouteAnalyzer.sortByTotalScoreDescending(diverse);

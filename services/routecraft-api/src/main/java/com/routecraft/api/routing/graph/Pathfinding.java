@@ -81,7 +81,7 @@ public final class Pathfinding {
                 }
 
                 double currentCost = costSoFar.getOrDefault(current.nodeId, 0.0);
-                double nextCost = currentCost + cost * (1 + penalty);
+                double nextCost = currentCost + cost + penalty;
                 Double known = costSoFar.get(edge.to());
 
                 if (known == null || nextCost < known) {

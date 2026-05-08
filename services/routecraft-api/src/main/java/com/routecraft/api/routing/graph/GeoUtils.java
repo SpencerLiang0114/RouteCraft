@@ -131,7 +131,8 @@ public final class GeoUtils {
     }
 
     public static double distanceToleranceRatio(double targetDistanceKm) {
-        return 0.5 / targetDistanceKm;
+        // Percentage-based: ~20 % at 3 km, ~12 % at 10 km, ~8 % at 20 km+
+        return Math.max(0.08, 0.35 / Math.sqrt(Math.max(targetDistanceKm, 0.1)));
     }
 
     public static double weightedAverage(List<double[]> valuesAndWeights, double fallback) {

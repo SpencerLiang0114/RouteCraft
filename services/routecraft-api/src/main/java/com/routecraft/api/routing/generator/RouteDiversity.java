@@ -14,14 +14,33 @@ public final class RouteDiversity {
     private RouteDiversity() {
     }
 
+    /**
+     * Filters a ranked list of candidates to keep at most one per cluster of similar routes.
+     *
+     * <p>Two routes are considered too similar if either:
+     * <ul>
+     *   <li>their edge-ID overlap ratio exceeds {@code maxEdgeOverlap}, <em>or</em></li>
+     *   <li>their geometry centroids are within {@code centroidThresholdKm} of each other
+     *       (catches spatial twins that share 0 % of OSM edge IDs).</li>
+     * </ul>
+     *
+     * @param routes               candidates ordered from best to worst
+     * @param maxEdgeOverlap       maximum allowed edge-distance overlap ratio (0–1)
+     * @param centroidThresholdKm  maximum centroid distance to treat as a spatial duplicate
+     */
     public static List<GeneratedRouteCandidate> filterDiverseRoutes(
             List<GeneratedRouteCandidate> routes,
-            double maxOverlap) {
+            double maxEdgeOverlap,
+            double centroidThresholdKm) {
         List<GeneratedRouteCandidate> kept = new ArrayList<>();
         for (GeneratedRouteCandidate route : routes) {
             boolean overlaps = false;
             for (GeneratedRouteCandidate keptRoute : kept) {
-                if (overlap(route, keptRoute) > maxOverlap) {
+                if (edgeOverlap(route, keptRoute) > maxEdgeOverlap) {
+                    overlaps = true;
+                    break;
+                }
+                if (centroidDistance(route, keptRoute) < centroidThresholdKm) {
                     overlaps = true;
                     break;
                 }
@@ -33,7 +52,23 @@ public final class RouteDiversity {
         return kept;
     }
 
-    private static double overlap(GeneratedRouteCandidate a, GeneratedRouteCandidate b) {
+    /**
+     * Convenience overload that applies only the edge-overlap check (for callers that cannot
+     * supply a centroid threshold).
+     */
+    public static List<GeneratedRouteCandidate> filterDiverseRoutes(
+            List<GeneratedRouteCandidate> routes,
+            double maxEdgeOverlap) {
+        // Use a very small centroid threshold so it rarely triggers on its own —
+        // the edge-overlap check remains the primary filter.
+        return filterDiverseRoutes(routes, maxEdgeOverlap, 0.05);
+    }
+
+    // ------------------------------------------------------------------
+    // Overlap metrics
+    // ------------------------------------------------------------------
+
+    private static double edgeOverlap(GeneratedRouteCandidate a, GeneratedRouteCandidate b) {
         Set<String> idsA = new HashSet<>(a.edgeIds());
         Set<String> idsB = new HashSet<>(b.edgeIds());
         Set<String> shared = new HashSet<>(idsA);
@@ -57,8 +92,33 @@ public final class RouteDiversity {
     }
 
     /**
-     * Geometry-based overlap for routes that don't carry edge metadata. Used when comparing public-facing
-     * RouteCandidate values where the internal edge list isn't available.
+     * Haversine distance between the geographic centroids of two routes' geometry.
+     * The centroid is approximated as the mean of all geometry coordinates.
+     */
+    private static double centroidDistance(GeneratedRouteCandidate a, GeneratedRouteCandidate b) {
+        LatLng ca = centroid(a.candidate().geometry());
+        LatLng cb = centroid(b.candidate().geometry());
+        if (ca == null || cb == null) return Double.MAX_VALUE;
+        return GeoUtils.haversineDistanceKm(ca, cb);
+    }
+
+    private static LatLng centroid(List<LatLng> geometry) {
+        if (geometry == null || geometry.isEmpty()) return null;
+        double sumLat = 0, sumLng = 0;
+        for (LatLng p : geometry) {
+            sumLat += p.lat();
+            sumLng += p.lng();
+        }
+        return new LatLng(sumLat / geometry.size(), sumLng / geometry.size());
+    }
+
+    // ------------------------------------------------------------------
+    // Public geometry utilities
+    // ------------------------------------------------------------------
+
+    /**
+     * Geometry-based overlap for routes that don't carry edge metadata. Used when comparing
+     * public-facing RouteCandidate values where the internal edge list isn't available.
      */
     public static double geometryOverlap(List<LatLng> geometryA, List<LatLng> geometryB) {
         Set<String> segmentsA = geometrySegmentKeys(geometryA);
