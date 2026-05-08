@@ -3,6 +3,7 @@ import { ArrowLeftRight, Clock, Flag, Loader2, MapPin, MousePointer2, RotateCw, 
 import type { LayerGroup, Map as LeafletMap } from "leaflet";
 import { formatLatLng } from "@/lib/geoUtils";
 import type { LatLng, RouteType, UserPreferences } from "@/types/route";
+import { apiUrl } from "@/lib/api-client/routing";
 
 type RouteGoal = Extract<RouteType, "point_to_point" | "loop">;
 type TargetMode = "distance" | "time";
@@ -387,7 +388,7 @@ function PointToPointMap({
     setIsSearching(true);
     setSearchMessage(null);
     try {
-      const response = await fetch(`/api/geocode/search?q=${encodeURIComponent(trimmedQuery)}`);
+      const response = await fetch(apiUrl(`/api/geocode/search?q=${encodeURIComponent(trimmedQuery)}`));
       if (!response.ok) throw new Error("Address search failed.");
       const data = (await response.json()) as { results?: GeocodeResult[]; message?: string };
       const nextResults = data.results ?? [];

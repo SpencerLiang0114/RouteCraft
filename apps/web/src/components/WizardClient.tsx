@@ -10,7 +10,7 @@ import { RouteGoalSelector } from "./RouteGoalSelector";
 import { RouteStyleSelector } from "./RouteStyleSelector";
 import { RouteSummary } from "./RouteSummary";
 import { StartPointPicker } from "./StartPointPicker";
-import { generateRoutes as generateRoutesRequest } from "@/frontend/api/routing";
+import { generateRoutes as generateRoutesRequest } from "@/lib/api-client/routing";
 import { useRouteStore } from "@/store/routeStore";
 import type { UserPreferences } from "@/types/route";
 

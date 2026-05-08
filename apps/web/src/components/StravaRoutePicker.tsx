@@ -21,7 +21,7 @@ import type * as Leaflet from "leaflet";
 import { mockStravaRoutes } from "@/lib/mockRoutes";
 import { normalizeExternalRoute } from "@/lib/routeNormalizer";
 import { formatActivity } from "@/lib/geoUtils";
-import { loadStravaSegments } from "@/frontend/api/strava";
+import { loadStravaSegments } from "@/lib/api-client/strava";
 import { useRouteStore } from "@/store/routeStore";
 import type { ExternalRouteMock, LatLng } from "@/types/route";
 

@@ -168,4 +168,66 @@ public final class GeoUtils {
     public static boolean wantsClimbing(UserPreferences preferences) {
         return preferences.routeStyle() == com.routecraft.api.routing.model.RouteStyle.CLIMBING;
     }
+
+    public static List<LatLng> decodePolyline(String encoded) {
+        List<LatLng> path = new java.util.ArrayList<>();
+        int index = 0, len = encoded.length();
+        int lat = 0, lng = 0;
+
+        while (index < len) {
+            int b, shift = 0, result = 0;
+            do {
+                b = encoded.charAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+            lat += dlat;
+
+            shift = 0;
+            result = 0;
+            do {
+                b = encoded.charAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+            lng += dlng;
+
+            path.add(new LatLng(((double) lat / 1E5), ((double) lng / 1E5)));
+        }
+        return path;
+    }
+
+    public static double pointToSegmentDistanceKm(LatLng point, LatLng start, LatLng end) {
+        double[] startVector = projectedOffsetKm(point, start);
+        double[] endVector = projectedOffsetKm(point, end);
+        double segmentX = endVector[0] - startVector[0];
+        double segmentY = endVector[1] - startVector[1];
+        double segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+        if (segmentLengthSquared == 0) {
+            return haversineDistanceKm(point, start);
+        }
+
+        double projection = clamp(
+                -(startVector[0] * segmentX + startVector[1] * segmentY) / segmentLengthSquared,
+                0,
+                1
+        );
+        double closestX = startVector[0] + segmentX * projection;
+        double closestY = startVector[1] + segmentY * projection;
+
+        return Math.sqrt(closestX * closestX + closestY * closestY);
+    }
+
+    public static double[] projectedOffsetKm(LatLng origin, LatLng point) {
+        double kmPerDegreeLat = 111.32;
+        double kmPerDegreeLng = kmPerDegreeLat * Math.cos(toRadians(origin.lat()));
+
+        return new double[]{
+                (point.lng() - origin.lng()) * kmPerDegreeLng,
+                (point.lat() - origin.lat()) * kmPerDegreeLat
+        };
+    }
 }

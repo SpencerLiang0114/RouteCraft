@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
-import { loadSavedRoutes as fetchSavedRoutes, saveRoute as persistSavedRoute } from "@/frontend/api/savedRoutes";
+import { loadSavedRoutes as fetchSavedRoutes, saveRoute as persistSavedRoute } from "@/lib/api-client/savedRoutes";
 import type { RouteCandidate, SavedRoute } from "@/types/route";
 
 const routecraftStorageKey = "routecraft-flow";

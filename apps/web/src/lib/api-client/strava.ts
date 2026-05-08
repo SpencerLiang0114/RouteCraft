@@ -1,6 +1,7 @@
 import "client-only";
 
 import type { ExternalRouteMock, LatLng } from "@/types/route";
+import { apiUrl } from "./routing";
 
 export type StravaSegmentsSource = "strava-api" | "mock";
 export type StravaSegmentsActivity = "all" | "running" | "riding";
@@ -31,7 +32,7 @@ export async function loadStravaSegments({
     radiusKm: String(radiusKm),
     limit: String(limit),
   });
-  const response = await fetch(`/api/strava/segments?${params.toString()}`, {
+  const response = await fetch(apiUrl(`/api/strava/segments?${params.toString()}`), {
     signal,
     cache: "no-store",
   });
