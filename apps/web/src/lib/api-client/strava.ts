@@ -1,7 +1,6 @@
 import "client-only";
 
 import type { ExternalRouteMock, LatLng } from "@/types/route";
-import { apiUrl } from "./routing";
 
 export type StravaSegmentsSource = "strava-api" | "mock";
 export type StravaSegmentsActivity = "all" | "running" | "riding";
@@ -32,14 +31,14 @@ export async function loadStravaSegments({
     radiusKm: String(radiusKm),
     limit: String(limit),
   });
-  const response = await fetch(apiUrl(`/api/strava/segments?${params.toString()}`), {
+  const response = await fetch(`/api/strava/segments?${params.toString()}`, {
     signal,
     cache: "no-store",
   });
-  const data = (await response.json()) as Partial<StravaSegmentsResult>;
+  const data = (await response.json().catch(() => null)) as Partial<StravaSegmentsResult> | null;
 
-  if (!response.ok || !Array.isArray(data.segments)) {
-    throw new Error(data.message ?? "Could not load Strava segments.");
+  if (!response.ok || !data || !Array.isArray(data.segments)) {
+    throw new Error(data?.message ?? "Could not load Strava segments.");
   }
 
   return {
