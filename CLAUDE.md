@@ -24,12 +24,10 @@ There are two runtimes:
 ```bash
 # Frontend (run from apps/web/)
 cd apps/web
-npm install
-npm run dev       # next dev → http://localhost:3000
-npm run build     # production build (also type-checks)
-npm run lint      # ESLint
-npm run dev:api   # convenience: starts the Spring Boot API
-npm run dev:db    # convenience: starts the Postgres container
+pnpm install
+pnpm dev       # next dev → http://localhost:3000
+pnpm build     # production build (also type-checks)
+pnpm lint      # ESLint
 
 # Backend (run from services/routecraft-api/)
 cd services/routecraft-api

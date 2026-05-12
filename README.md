@@ -38,7 +38,7 @@ routecraft/
 └── README.md
 ```
 
-There is no root `package.json` and no npm workspaces — `cd apps/web` to run frontend commands, `cd services/routecraft-api` to run backend commands.
+There is no root `package.json` and no root package-manager workspace — `cd apps/web` to run frontend pnpm commands, `cd services/routecraft-api` to run backend commands.
 
 ## Run Locally
 
@@ -59,8 +59,8 @@ cd services/routecraft-api
 # Terminal 3: frontend
 cd apps/web
 cp .env.example .env.local
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -73,7 +73,7 @@ You can also run the database and API together from the repo root:
 docker compose up --build
 ```
 
-Then run the frontend separately from `apps/web` with `npm run dev`.
+Then run the frontend separately from `apps/web` with `pnpm dev`.
 
 Strava credentials are optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, and `STRAVA_REFRESH_TOKEN` in the backend environment to enable live segment loading; without them the Strava flow falls back to local mock data. The frontend `.env.local` only needs the API URL values from `.env.example`.
 
@@ -196,7 +196,7 @@ The final edge cost is floored at `distance * 0.2`.
 cd services/routecraft-api && ./mvnw test
 
 # Frontend
-cd apps/web && npm run lint && npm run build
+cd apps/web && pnpm lint && pnpm build
 ```
 
-For an end-to-end smoke test, start Postgres and the API (`docker-compose up`), run `npm run dev`, walk the wizard, and confirm a row appears in `generated_route_batches` with non-null `bbox`.
+For an end-to-end smoke test, start Postgres and the API (`docker-compose up`), run `pnpm dev`, walk the wizard, and confirm a row appears in `generated_route_batches` with non-null `bbox`.

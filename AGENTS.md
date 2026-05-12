@@ -3,10 +3,10 @@
 
 This is a two-runtime monorepo:
 
-- `apps/web/` — Next.js 16 frontend. All `npm` commands run from this directory.
+- `apps/web/` — Next.js 16 frontend. All `pnpm` commands run from this directory.
 - `services/routecraft-api/` — Spring Boot 4 / Java 21 backend. All `./mvnw` commands run from this directory.
 
-There is no root `package.json` and no npm workspaces.
+There is no root `package.json` and no root package-manager workspace. The frontend uses pnpm from `apps/web/`.
 
 # This is NOT the Next.js you know
 
