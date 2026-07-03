@@ -13,8 +13,8 @@ export default function StravaPage() {
         <p className="font-semibold text-orange-600">Strava route map</p>
         <h1 className="mt-2 text-4xl font-semibold text-stone-950">Explore existing routes near you</h1>
         <p className="mt-4 text-lg leading-8 text-stone-600">
-          MVP data is mocked and centered on your browser location when available. Real saved routes and
-          nearby Strava segments can be wired in through Strava OAuth/API later.
+          Nearby Strava segments load when backend credentials are configured; otherwise RouteCraft
+          shows local mock routes centered on your browser location when available.
         </p>
       </div>
       <StravaRoutePicker />
