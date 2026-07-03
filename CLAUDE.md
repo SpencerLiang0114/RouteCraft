@@ -45,8 +45,7 @@ Path alias: `@/` maps to `apps/web/src/`. Use it for all imports — never relat
 |---|---|---|
 | `src/app/` | server components | Pages and API route handlers |
 | `src/components/` | client components | Maps, results, forms, controls |
-| `src/frontend/api/` | `import "client-only"` | Browser fetch wrappers that call the Spring Boot API |
-| `src/backend/` | `import "server-only"` | Server-side helpers (currently just the Strava proxy) |
+| `src/lib/api-client/` | `import "client-only"` | Browser fetch wrappers that call the Spring Boot API |
 | `src/lib/` | utilities | GPX/KML parsing/export, polyline decoding, scoring of *imported* routes |
 | `src/store/routeStore.ts` | Zustand | Single persisted store for `results`, `activeRouteId`, `savedRoutes` (SSR-safe) |
 | `src/types/route.ts` | types | Canonical types — `RouteCandidate`, `UserPreferences`, etc. |
@@ -103,7 +102,7 @@ Flyway migrations under `src/main/resources/db/migration/`:
 - **Overpass** (`overpass-api.de`, plus two mirrors) — OSM highway and green-space data
 - **Open-Meteo** (`api.open-meteo.com/v1/elevation`) — elevation, primary
 - **Open-Elevation** (`api.open-elevation.com`) — elevation, fallback
-- **Nominatim** — geocoding, proxied via `GET /api/geocode/search` in Next.js (still server-side)
-- **Strava** — segment exploration proxied via `GET /api/strava/segments`; falls back to mocks in `src/backend/strava/stravaApi.ts` when credentials are absent
+- **Nominatim** — geocoding, proxied via `GET /api/geocode/search` in Spring Boot
+- **Strava** — segment exploration proxied via `GET /api/strava/segments`; falls back to local mock route data when credentials are absent
 
-Strava credentials are optional. Add them to `apps/web/.env.local` to enable real Strava data.
+Strava credentials are optional. Add them to the backend environment to enable real Strava data; keep frontend `.env.local` limited to API URL values.

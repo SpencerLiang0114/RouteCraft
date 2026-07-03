@@ -42,6 +42,10 @@ There is no root `package.json` and no root package-manager workspace — `cd ap
 
 ## Run Locally
 
+RouteCraft is currently a local-first demo. The backend endpoints do not include
+authentication or per-user authorization, so do not expose `routecraft-api`
+directly to the public internet without adding those controls.
+
 Use three terminals:
 
 ```bash
@@ -75,7 +79,7 @@ docker compose up --build
 
 Then run the frontend separately from `apps/web` with `pnpm dev`.
 
-Strava credentials are optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, and `STRAVA_REFRESH_TOKEN` in the backend environment to enable live segment loading; without them the Strava flow falls back to local mock data. The frontend `.env.local` only needs the API URL values from `.env.example`.
+Strava credentials are optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, and `STRAVA_REFRESH_TOKEN` in the backend environment to enable live segment loading; without them the Strava flow falls back to local mock data. The frontend `.env.local` only needs the API URL values from `.env.example`; backend-only values are documented in `services/routecraft-api/.env.example`.
 
 ## Project Structure
 

@@ -12,22 +12,22 @@
   "dependencies": {
     "@types/leaflet": "^1.9.21",
     "client-only": "^0.0.1",
-    "idb-keyval": "^6.2.2",
+    "idb-keyval": "^6.2.6",
     "leaflet": "^1.9.4",
-    "lucide-react": "^1.14.0",
-    "next": "^16.2.6",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "zustand": "^5.0.13"
+    "lucide-react": "^1.23.0",
+    "next": "^16.2.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
-    "tailwindcss": "^4",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4.3.2",
     "typescript": "^5"
   }
 }
