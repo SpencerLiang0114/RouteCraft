@@ -6,6 +6,10 @@ RouteCraft is an outdoor route planner for running, hiking, and cycling. Users c
 
 `/` -> `/route-source` -> `/strava` | `/wizard` | `/upload` -> `/results` -> `/saved`
 
+## Demo
+
+![RouteCraft generated route demo](docs/assets/routecraft2.png)
+
 ## Architecture
 
 | Tier | Stack | Responsibility |
