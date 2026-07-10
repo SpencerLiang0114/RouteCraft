@@ -54,12 +54,13 @@ public final class RouteGraph {
     }
 
     public List<RangeHit> findNodesInRing(LatLng point, double radiusM, double toleranceM) {
-        List<KdTree.RangeHit> results = new ArrayList<>();
-        kdTree.rangeRing(point, radiusM, toleranceM, results);
-        return results.stream()
-                .map(hit -> new RangeHit(hit.node(), hit.distanceM()))
-                .sorted((a, b) -> Double.compare(a.distanceM(), b.distanceM()))
-                .toList();
+        List<KdTree.RangeHit> hits = new ArrayList<>();
+        kdTree.rangeRing(point, radiusM, toleranceM, hits);
+        List<RangeHit> results = new ArrayList<>(hits.size());
+        for (KdTree.RangeHit hit : hits) {
+            results.add(new RangeHit(hit.node(), hit.distanceM()));
+        }
+        return results;
     }
 
     public record RangeHit(RouteNode node, double distanceM) {
