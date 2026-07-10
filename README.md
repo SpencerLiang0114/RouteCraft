@@ -103,7 +103,7 @@ The Java backend is organised by responsibility:
 | Package | Role |
 | --- | --- |
 | `routing.model` | DTOs that mirror the TypeScript `RouteCandidate`/`UserPreferences` shape exactly |
-| `routing.graph` | `RouteGraph`, KD-tree, A\*, Yen's K-shortest paths, edge cost |
+| `routing.graph` | `RouteGraph`, KD-tree, A\*, shortest-path trees, bounded alternatives, edge cost |
 | `routing.osm` | Overpass HTTP client, Open-Meteo elevation, OSM-tag scoring, anchor splicing |
 | `routing.generator` | Loop/out-and-back/point-to-point generators, candidate ranking, diversity filter, mock fallback graph |
 | `routing` | `RouteGenerationService` (orchestrator) and `RoutingController` |
@@ -133,7 +133,7 @@ The bounding box on `generated_route_batches` is computed from candidate geometr
    - Optionally enrich edges with Open-Meteo elevations (Open-Elevation as fallback).
    - Splice user start (and end, if provided) onto the nearest edges.
 3. Dispatch by route type to `LoopGenerator`, `OutAndBackGenerator`, or `PointToPointGenerator`.
-4. Filter to within ±500 m of the user's target distance (relaxed when fewer than three survive).
+4. Filter candidates using the target-distance tolerance (relaxed when fewer than three survive).
 5. Rank by total score, then drop geometrically similar candidates with `RouteDiversity`.
 6. Return the top three.
 7. Persist the batch (with bbox) and per-candidate `LineString` geometry in PostGIS.
@@ -150,7 +150,8 @@ The heuristic is straight-line distance multiplied by `0.2`. `EdgeCost.compute()
 
 ```text
 priority = costSoFar[node]
-  + EdgeCost.compute(edge) * (1 + edgePenalty)
+  + EdgeCost.compute(edge)
+  + edgePenalty
   + distanceM(node, goal) * 0.2
 ```
 
@@ -158,25 +159,28 @@ priority = costSoFar[node]
 
 ### Loop Generation
 
-`LoopGenerator` picks waypoints around the start at radii calibrated to land near the target round-trip distance, then runs A\* through them with **cumulative edge penalties**: edges already used by earlier segments become expensive for later segments, so the return leg uses different roads. The closing segment receives an extra boost. A stack-based despike removes any go-in/come-back artefacts at waypoint transitions, and a self-overlap filter (≤12 % strict, ≤24 % loose) rejects lollipop loops.
+`LoopGenerator` picks tiered waypoint sets around the start at radii calibrated to land near the target round-trip distance. It runs A\* through the strongest tiers first, caches repeated first legs and closing corridors, and expands to broader tiers only when the current pool lacks enough target-matching, diverse routes. **Cumulative edge penalties** make edges used by earlier segments expensive for later segments, so the return leg uses different roads. A stack-based despike removes go-in/come-back artefacts at waypoint transitions, and a self-overlap filter (≤5 % strict, ≤15 % loose) rejects lollipop loops.
 
 ### Out-and-Back
 
-`OutAndBackGenerator` runs single-source Dijkstra (`Pathfinding.singleSourceShortestDistances`) from the start to every reachable node, filters destinations to within ±25 % of `target / 2`, and sorts by distance accuracy. The return leg retraces the outbound, making total distance deterministic (`2 × outbound`).
+`OutAndBackGenerator` builds one preference-weighted shortest-path tree from the start, stores both optimized cost and physical path distance for every reachable node, then reconstructs the best outbound paths for destinations near `target / 2`. The return leg retraces the outbound, making total distance deterministic (`2 × outbound`) without rerunning A\* for every destination.
 
-### Point-to-Point with Yen's K-Shortest Paths
+### Point-to-Point Alternatives
 
-`PointToPointGenerator` uses `Pathfinding.findKShortestPaths()` (Yen's) to surface alternatives between the user's start and end:
+`PointToPointGenerator` uses a bounded edge-penalized search to surface practical alternatives between the user's start and end:
 
 1. Find the cheapest path with A\*.
-2. Iterate over spur nodes in accepted paths.
-3. Temporarily block edges that would duplicate an accepted root path.
-4. Run A\* from each spur node to the goal.
-5. Accept the cheapest unique candidate until enough options are found.
+2. Add cumulative penalties to its edges.
+3. Re-run A\* with the penalties so later paths prefer different corridors.
+4. Keep unique alternatives within a fixed search budget.
 
-For target-distance detours, an intermediate via-point is selected and the second leg is biased away from the first leg's edges so the two halves use different roads.
+For target-distance detours, a bounded heap keeps the best intermediate via-points, and the second leg is biased away from the first leg's edges so the two halves use different roads.
 
 `RouteDiversity.filterDiverseRoutes()` then removes candidates that are too geometrically similar.
+
+### Runtime-oriented search design
+
+The generators avoid multiplying full-graph searches when a shared result can be reused. Shortest-path trees replace repeated destination searches, loop first legs and spatial corridors are cached, route fingerprints are prepared once for diversity checks, and candidate generation stops after the required target-distance/diversity pool is available. On a synthetic 10 km `MockGraph` benchmark, route-generation time improved by approximately 2× for loops, 3× for out-and-back routes, and 5× for point-to-point routes; the benchmark excludes OSM loading and elevation services.
 
 ## Scoring
 
