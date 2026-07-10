@@ -4,6 +4,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -130,45 +134,71 @@ public class RouteGenerationService {
     }
 
     private List<RouteCandidate> enrichRoutesWithElevation(List<RouteCandidate> routes) {
+        if (routes.size() < 2) {
+            List<RouteCandidate> result = new ArrayList<>(routes.size());
+            for (RouteCandidate route : routes) {
+                result.add(enrichRouteWithElevation(route));
+            }
+            return result;
+        }
+
         List<RouteCandidate> result = new ArrayList<>(routes.size());
-        for (RouteCandidate route : routes) {
-            ElevationService.RouteElevationProfile profile;
-            try {
-                profile = elevationService.fetchRouteElevationProfile(route.geometry());
-            } catch (Exception ex) {
-                profile = null;
+        // The final route set is small, but each elevation profile is network-bound. Virtual
+        // threads overlap those waits without consuming the request executor's platform threads.
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<RouteCandidate>> futures = new ArrayList<>(routes.size());
+            for (RouteCandidate route : routes) {
+                futures.add(executor.submit(() -> enrichRouteWithElevation(route)));
             }
-            if (profile == null) {
-                result.add(route);
-                continue;
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    result.add(futures.get(i).get());
+                } catch (ExecutionException ex) {
+                    result.add(routes.get(i));
+                }
             }
-            List<ElevationPoint> scaled = scaleElevationProfileDistance(profile.profile(), route.distanceKm());
-            double averageSlopePct = route.distanceKm() > 0
-                    ? Math.round((profile.stats().elevationGainM() / (route.distanceKm() * 1000.0)) * 1000.0) / 10.0
-                    : (route.averageSlopePct() == null ? 0 : route.averageSlopePct());
-            result.add(new RouteCandidate(
-                    route.id(),
-                    route.source(),
-                    route.name(),
-                    route.activity(),
-                    route.routeType(),
-                    route.geometry(),
-                    route.waypoints(),
-                    route.distanceKm(),
-                    route.estimatedDurationMin(),
-                    profile.stats().elevationGainM(),
-                    profile.stats().totalDescentM(),
-                    averageSlopePct,
-                    route.maxSlopePct(),
-                    profile.stats().lowestElevM(),
-                    profile.stats().highestElevM(),
-                    profile.stats().elevDifferenceM(),
-                    scaled,
-                    route.difficulty(),
-                    route.metrics(),
-                    route.explanation()));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return routes;
         }
         return result;
+    }
+
+    private RouteCandidate enrichRouteWithElevation(RouteCandidate route) {
+        ElevationService.RouteElevationProfile profile;
+        try {
+            profile = elevationService.fetchRouteElevationProfile(route.geometry());
+        } catch (Exception ex) {
+            profile = null;
+        }
+        if (profile == null) {
+            return route;
+        }
+        List<ElevationPoint> scaled = scaleElevationProfileDistance(profile.profile(), route.distanceKm());
+        double averageSlopePct = route.distanceKm() > 0
+                ? Math.round((profile.stats().elevationGainM() / (route.distanceKm() * 1000.0)) * 1000.0) / 10.0
+                : (route.averageSlopePct() == null ? 0 : route.averageSlopePct());
+        return new RouteCandidate(
+                route.id(),
+                route.source(),
+                route.name(),
+                route.activity(),
+                route.routeType(),
+                route.geometry(),
+                route.waypoints(),
+                route.distanceKm(),
+                route.estimatedDurationMin(),
+                profile.stats().elevationGainM(),
+                profile.stats().totalDescentM(),
+                averageSlopePct,
+                route.maxSlopePct(),
+                profile.stats().lowestElevM(),
+                profile.stats().highestElevM(),
+                profile.stats().elevDifferenceM(),
+                scaled,
+                route.difficulty(),
+                route.metrics(),
+                route.explanation());
     }
 
     private static List<ElevationPoint> scaleElevationProfileDistance(List<ElevationPoint> profile, double distanceKm) {
