@@ -11,6 +11,7 @@ public final class RouteEdge {
     private final String id;
     private final String from;
     private final String to;
+    private final String undirectedKey;
     private final double distanceM;
     private final List<LatLng> geometry;
     private final String surfaceType;
@@ -34,6 +35,7 @@ public final class RouteEdge {
         this.id = builder.id;
         this.from = builder.from;
         this.to = builder.to;
+        this.undirectedKey = GeoUtils.undirectedEdgeKey(builder.from, builder.to);
         this.distanceM = builder.distanceM;
         this.geometry = builder.geometry == null ? List.of() : List.copyOf(builder.geometry);
         this.surfaceType = builder.surfaceType;
@@ -139,7 +141,7 @@ public final class RouteEdge {
     }
 
     public String undirectedKey() {
-        return GeoUtils.undirectedEdgeKey(from, to);
+        return undirectedKey;
     }
 
     public Builder toBuilder() {

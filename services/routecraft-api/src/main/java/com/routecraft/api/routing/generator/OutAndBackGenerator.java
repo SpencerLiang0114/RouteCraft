@@ -21,12 +21,15 @@ public final class OutAndBackGenerator {
     public static List<GeneratedRouteCandidate> generate(UserPreferences preferences, RouteGraph graph) {
         RouteNode startNode = CandidateSelector.getStartNode(graph, preferences);
         double targetDistanceM = GeoUtils.resolveTargetDistanceKm(preferences) * 1000;
-        List<RouteNode> destinations = CandidateSelector.findOutAndBackDestinations(preferences, graph, startNode);
+        Pathfinding.ShortestPathTree searchTree =
+                Pathfinding.buildShortestPathTree(graph, startNode.id(), preferences);
+        List<RouteNode> destinations = CandidateSelector.findOutAndBackDestinations(
+                preferences, graph, startNode, searchTree.pathDistancesM());
 
         record Outbound(PathResult outbound, RouteNode destination, double reverseError) {}
         List<Outbound> built = new ArrayList<>();
         for (RouteNode destination : destinations) {
-            Optional<PathResult> outbound = Pathfinding.findShortestPath(graph, startNode.id(), destination.id(), preferences);
+            Optional<PathResult> outbound = searchTree.pathTo(graph, destination.id());
             if (outbound.isEmpty()) continue;
             double err = Math.abs(outbound.get().distanceM() * 2 - targetDistanceM);
             built.add(new Outbound(outbound.get(), destination, err));

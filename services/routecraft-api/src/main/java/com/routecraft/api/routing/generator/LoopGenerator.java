@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.routecraft.api.routing.graph.EdgeCost;
 import com.routecraft.api.routing.graph.GeoUtils;
 import com.routecraft.api.routing.graph.PathOptions;
 import com.routecraft.api.routing.graph.PathResult;
@@ -75,6 +76,13 @@ public final class LoopGenerator {
     /** Maximum fraction of short steep edges for non-climbing routes. */
     private static final double MAX_STEEP_SPIKE_RATIO = 0.16;
 
+    /** Evaluate the two highest-quality anchor tiers before considering broader fallbacks. */
+    private static final int INITIAL_WAYPOINT_TIER = 2;
+
+    /** A robust early pool must survive both distance and spatial-diversity checks. */
+    private static final int MIN_TARGET_MATCHES_FOR_EARLY_STOP = 8;
+    private static final int MIN_DIVERSE_ROUTES_FOR_EARLY_STOP = 3;
+
     private LoopGenerator() {
     }
 
@@ -87,11 +95,21 @@ public final class LoopGenerator {
         List<CandidateSelector.WaypointSet> waypointSets =
                 CandidateSelector.generateLoopWaypointSets(preferences, graph, startNode);
 
-        record Built(GeneratedRouteCandidate candidate, LoopShape shape) {}
         List<Built> built = new ArrayList<>();
+        EdgeCost.PreferenceCache prefCache = EdgeCost.PreferenceCache.of(preferences);
+        Map<String, Optional<PathResult>> firstLegCache = new HashMap<>();
+        Map<String, Map<String, Double>> corridorPenaltyCache = new HashMap<>();
+        int currentTier = waypointSets.isEmpty() ? 0 : waypointSets.get(0).tier();
 
         for (int index = 0; index < waypointSets.size(); index++) {
             CandidateSelector.WaypointSet set = waypointSets.get(index);
+            if (set.tier() > currentTier) {
+                if (currentTier >= INITIAL_WAYPOINT_TIER
+                        && hasSufficientLoopPool(built, preferences)) {
+                    break;
+                }
+                currentTier = set.tier();
+            }
             List<String> nodeIds = new ArrayList<>();
             nodeIds.add(startNode.id());
             nodeIds.addAll(set.nodeIds());
@@ -109,14 +127,33 @@ public final class LoopGenerator {
                 Map<String, Double> segmentPenalties;
                 if (isClosingSegment) {
                     // For the closing segment: double the edge penalties and add spatial corridor
-                    segmentPenalties = buildClosingPenalties(graph, segments, edgePenalties);
+                    Map<String, Double> corridorPenalties = corridorPenaltyCache.computeIfAbsent(
+                            nodeIds.get(1),
+                            ignored -> buildCorridorPenalties(graph, segments.get(0)));
+                    segmentPenalties = buildClosingPenalties(edgePenalties, corridorPenalties);
                 } else {
                     segmentPenalties = edgePenalties;
                 }
 
-                Optional<PathResult> segment = Pathfinding.findShortestPath(
-                        graph, nodeIds.get(step), nodeIds.get(step + 1), preferences,
-                        new PathOptions(null, null, segmentPenalties));
+                Optional<PathResult> segment;
+                if (step == 0) {
+                    String firstWaypointId = nodeIds.get(1);
+                    segment = firstLegCache.computeIfAbsent(
+                            firstWaypointId,
+                            ignored -> Pathfinding.findShortestPath(
+                                    graph,
+                                    startNode.id(),
+                                    firstWaypointId,
+                                    prefCache,
+                                    PathOptions.empty()));
+                } else {
+                    segment = Pathfinding.findShortestPath(
+                            graph,
+                            nodeIds.get(step),
+                            nodeIds.get(step + 1),
+                            prefCache,
+                            new PathOptions(null, null, segmentPenalties));
+                }
                 if (segment.isEmpty()) {
                     failed = true;
                     break;
@@ -126,8 +163,13 @@ public final class LoopGenerator {
                 double directDistanceM = GeoUtils.distanceM(
                         graph.nodes().get(nodeIds.get(step)).point(),
                         graph.nodes().get(nodeIds.get(step + 1)).point());
-                legDetourRatios.add(directDistanceM > 40
-                        ? segment.get().distanceM() / directDistanceM : 1);
+                double legDetourRatio = directDistanceM > 40
+                        ? segment.get().distanceM() / directDistanceM : 1;
+                if (legDetourRatio > MAX_LEG_DETOUR_RATIO) {
+                    failed = true;
+                    break;
+                }
+                legDetourRatios.add(legDetourRatio);
 
                 // Accumulate additive penalties (scaled by edge distance) for subsequent legs
                 for (RouteEdge edge : segment.get().edges()) {
@@ -144,6 +186,7 @@ public final class LoopGenerator {
             if (path.edges().isEmpty()) continue;
 
             LoopShape shape = evaluateLoopShape(graph, path, startNode.point(), legDetourRatios, preferences);
+            if (!isRealLoopShape(shape, preferences)) continue;
 
             List<LatLng> waypoints = new ArrayList<>();
             for (String id : set.nodeIds()) {
@@ -165,26 +208,42 @@ public final class LoopGenerator {
             built.add(new Built(candidate, shape));
         }
 
-        // Filter: prefer strict overlap, then loose, then any real loop
-        List<Built> realLoops = built.stream()
-                .filter(b -> isRealLoopShape(b.shape(), preferences))
-                .toList();
-
-        List<Built> strict = realLoops.stream()
+        // Filter: prefer strict overlap, then the full set of valid loops.
+        List<Built> strict = built.stream()
                 .filter(b -> b.shape().overlapRatio <= STRICT_OVERLAP_LIMIT)
                 .toList();
         if (strict.size() >= 3) {
             return strict.stream().map(Built::candidate).toList();
         }
 
-        List<Built> loose = realLoops.stream()
-                .filter(b -> b.shape().overlapRatio <= LOOSE_OVERLAP_LIMIT)
+        return built.stream().map(Built::candidate).toList();
+    }
+
+    private static boolean hasSufficientLoopPool(
+            List<Built> built,
+            UserPreferences preferences) {
+        double targetDistanceKm = GeoUtils.resolveTargetDistanceKm(preferences);
+        double tolerance = GeoUtils.distanceToleranceRatio(targetDistanceKm);
+        List<GeneratedRouteCandidate> targetMatches = built.stream()
+                .filter(b -> b.shape().overlapRatio <= STRICT_OVERLAP_LIMIT)
+                .map(Built::candidate)
+                .filter(candidate -> Math.abs(
+                        candidate.candidate().distanceKm() - targetDistanceKm) / targetDistanceKm <= tolerance)
                 .toList();
-        if (loose.size() >= 3) {
-            return loose.stream().map(Built::candidate).toList();
+        if (targetMatches.size() < MIN_TARGET_MATCHES_FOR_EARLY_STOP) {
+            return false;
         }
 
-        return realLoops.stream().map(Built::candidate).toList();
+        List<GeneratedRouteCandidate> ranked = CandidateSelector.rankRoutes(targetMatches);
+        List<GeneratedRouteCandidate> diverse = RouteDiversity.filterDiverseRoutes(
+                ranked,
+                0.65,
+                targetDistanceKm * 0.10,
+                MIN_DIVERSE_ROUTES_FOR_EARLY_STOP);
+        return diverse.size() >= MIN_DIVERSE_ROUTES_FOR_EARLY_STOP;
+    }
+
+    private record Built(GeneratedRouteCandidate candidate, LoopShape shape) {
     }
 
     // ------------------------------------------------------------------
@@ -204,60 +263,54 @@ public final class LoopGenerator {
      *       "outbound corridor" to avoid penalising the route close to the start/end.</li>
      * </ol>
      *
-     * <p>Complexity: O(E_prev) for edge penalties + O(log V + hits × P) for corridor
-     * penalties, where P = corridor segment count and hits = nodes within the bounding
-     * radius of the corridor (much smaller than V in practice).
+     * <p>The spatial corridor component is cached per first waypoint. Repeated waypoint sets
+     * therefore only pay O(E_prev + E_corridor) to merge the two penalty maps.
      */
     private static Map<String, Double> buildClosingPenalties(
-            RouteGraph graph,
-            List<PathResult> previousSegments,
-            Map<String, Double> baseEdgePenalties) {
+            Map<String, Double> baseEdgePenalties,
+            Map<String, Double> corridorPenalties) {
 
-        Map<String, Double> result = new HashMap<>(baseEdgePenalties.size());
+        Map<String, Double> result = new HashMap<>(baseEdgePenalties.size() + corridorPenalties.size());
         for (Map.Entry<String, Double> e : baseEdgePenalties.entrySet()) {
             result.put(e.getKey(), e.getValue() * CLOSING_PENALTY_MULTIPLIER);
         }
+        for (Map.Entry<String, Double> e : corridorPenalties.entrySet()) {
+            result.merge(e.getKey(), e.getValue(), Double::sum);
+        }
+        return result;
+    }
 
-        // Build corridor geometry from the first ~40 % of outbound path
-        if (!previousSegments.isEmpty()) {
-            PathResult outbound = previousSegments.get(0);
-            List<LatLng> corridor = outbound.geometry();
-            int corridorEnd = Math.max(2, (int) (corridor.size() * 0.4));
-            List<LatLng> corridorPoints = corridor.subList(0, corridorEnd);
+    private static Map<String, Double> buildCorridorPenalties(
+            RouteGraph graph,
+            PathResult outbound) {
+        Map<String, Double> result = new HashMap<>();
+        List<LatLng> corridor = outbound.geometry();
+        if (corridor.size() < 2) {
+            return result;
+        }
+        int corridorEnd = Math.min(corridor.size(), Math.max(2, (int) (corridor.size() * 0.4)));
+        List<LatLng> corridorPoints = corridor.subList(0, corridorEnd);
 
-            // Compute the approximate radius of the corridor around its first point so
-            // we can use the KD-tree ring / nearest search to restrict the node scan.
-            // The bounding circle is centred at corridorPoints[0] with radius =
-            // max distance from that point to any other corridor point + SPATIAL_CORRIDOR_M.
-            LatLng corridorOrigin = corridorPoints.get(0);
-            double corridorSpanM = 0;
-            for (LatLng pt : corridorPoints) {
-                double d = GeoUtils.distanceM(corridorOrigin, pt);
-                if (d > corridorSpanM) corridorSpanM = d;
-            }
-            double searchRadiusM = corridorSpanM + SPATIAL_CORRIDOR_M;
+        // Compute a bounding circle for the first ~40 % of the outbound geometry.
+        LatLng corridorOrigin = corridorPoints.get(0);
+        double corridorSpanM = 0;
+        for (LatLng pt : corridorPoints) {
+            double d = GeoUtils.distanceM(corridorOrigin, pt);
+            if (d > corridorSpanM) corridorSpanM = d;
+        }
+        double searchRadiusM = corridorSpanM + SPATIAL_CORRIDOR_M;
 
-            // Use the KD-tree to find only the nodes within the bounding circle —
-            // avoids iterating all V graph nodes (was O(V × P) before).
-            List<RouteGraph.RangeHit> nearby =
-                    graph.findNodesInRing(corridorOrigin, searchRadiusM / 2, searchRadiusM / 2 + 1);
-            // findNodesInRing returns a ring; supplement with a nearest-node fallback for
-            // nodes very close to the origin (inside the inner radius hole).
-            // In practice we simply iterate the nearby candidates and run the full corridor
-            // check on each — this is correct and cheap because |nearby| ≪ |V|.
-            for (RouteGraph.RangeHit hit : nearby) {
-                RouteNode node = hit.node();
-                if (isInCorridor(node.point(), corridorPoints)) {
-                    // Penalise all edges connected to this node
-                    for (RouteEdge edge : graph.adjacent(node.id())) {
-                        String key = edge.undirectedKey();
-                        result.put(key,
-                                result.getOrDefault(key, 0.0) + SPATIAL_NODE_PENALTY * edge.distanceM());
-                    }
+        List<RouteGraph.RangeHit> nearby =
+                graph.findNodesInRing(corridorOrigin, searchRadiusM / 2, searchRadiusM / 2 + 1);
+        for (RouteGraph.RangeHit hit : nearby) {
+            RouteNode node = hit.node();
+            if (isInCorridor(node.point(), corridorPoints)) {
+                for (RouteEdge edge : graph.adjacent(node.id())) {
+                    String key = edge.undirectedKey();
+                    result.merge(key, SPATIAL_NODE_PENALTY * edge.distanceM(), Double::sum);
                 }
             }
         }
-
         return result;
     }
 

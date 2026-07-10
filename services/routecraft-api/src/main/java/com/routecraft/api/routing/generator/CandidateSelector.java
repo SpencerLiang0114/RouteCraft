@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 
 import com.routecraft.api.routing.graph.GeoUtils;
@@ -140,6 +141,7 @@ public final class CandidateSelector {
             addFallbackBearingSets(sets, graph, startNode, preferences, baseRadiusM);
         }
 
+        sets.sort(Comparator.comparingInt(WaypointSet::tier));
         return sets;
     }
 
@@ -148,9 +150,8 @@ public final class CandidateSelector {
      * start point, keeping only nodes within a reasonable radius band and returning the
      * top-quality nodes per sector.
      *
-     * <p>Time complexity: O(V) for the scan + O(S × B log B) for bucket sorts,
-     * where S = SECTOR_COUNT and B = bucket size.
-     * Space complexity: O(V) for bucket storage.
+     * <p>Time complexity: O(V log TOP_NODES_PER_SECTOR) for the bounded bucket scan.
+     * Space complexity: O(SECTOR_COUNT × TOP_NODES_PER_SECTOR).
      */
     private static List<List<RouteNode>> collectSectorNodes(
             RouteGraph graph,
@@ -161,11 +162,15 @@ public final class CandidateSelector {
         double minRadiusM = baseRadiusM * 0.55;
         double maxRadiusM = baseRadiusM * 1.55;
 
-        // Each sector bucket: list of (node, quality, distError)
+        Comparator<NodeQuality> qualityOrder = Comparator
+                .comparingDouble(NodeQuality::score)
+                .thenComparing(nq -> nq.node().id());
+
+        // Each sector keeps only its best nodes instead of storing and sorting every hit.
         @SuppressWarnings("unchecked")
-        List<NodeQuality>[] buckets = new List[SECTOR_COUNT];
+        PriorityQueue<NodeQuality>[] buckets = new PriorityQueue[SECTOR_COUNT];
         for (int i = 0; i < SECTOR_COUNT; i++) {
-            buckets[i] = new ArrayList<>();
+            buckets[i] = new PriorityQueue<>(TOP_NODES_PER_SECTOR, qualityOrder);
         }
 
         double sectorWidth = 360.0 / SECTOR_COUNT;
@@ -185,16 +190,23 @@ public final class CandidateSelector {
             double radialError = Math.abs(distM - baseRadiusM) / baseRadiusM;
             double compositeScore = quality - radialError * 0.4;
 
-            buckets[sector].add(new NodeQuality(node, compositeScore));
+            NodeQuality candidate = new NodeQuality(node, compositeScore);
+            PriorityQueue<NodeQuality> bucket = buckets[sector];
+            if (bucket.size() < TOP_NODES_PER_SECTOR) {
+                bucket.offer(candidate);
+            } else if (qualityOrder.compare(candidate, bucket.peek()) > 0) {
+                bucket.poll();
+                bucket.offer(candidate);
+            }
         }
 
         List<List<RouteNode>> result = new ArrayList<>(SECTOR_COUNT);
         for (int i = 0; i < SECTOR_COUNT; i++) {
-            List<NodeQuality> bucket = buckets[i];
-            bucket.sort(Comparator.comparingDouble((NodeQuality nq) -> nq.score).reversed());
-            List<RouteNode> top = new ArrayList<>();
-            for (int j = 0; j < Math.min(TOP_NODES_PER_SECTOR, bucket.size()); j++) {
-                top.add(bucket.get(j).node);
+            List<NodeQuality> bucket = new ArrayList<>(buckets[i]);
+            bucket.sort(qualityOrder.reversed());
+            List<RouteNode> top = new ArrayList<>(bucket.size());
+            for (NodeQuality nodeQuality : bucket) {
+                top.add(nodeQuality.node());
             }
             result.add(top);
         }
@@ -216,12 +228,17 @@ public final class CandidateSelector {
         int half = SECTOR_COUNT / 2;
         for (int i = 0; i < half; i++) {
             int opposite = (i + half) % SECTOR_COUNT;
-            for (RouteNode first : sectorNodes.get(i)) {
-                for (RouteNode second : sectorNodes.get(opposite)) {
+            List<RouteNode> firstSector = sectorNodes.get(i);
+            List<RouteNode> secondSector = sectorNodes.get(opposite);
+            for (int firstRank = 0; firstRank < firstSector.size(); firstRank++) {
+                RouteNode first = firstSector.get(firstRank);
+                for (int secondRank = 0; secondRank < secondSector.size(); secondRank++) {
+                    RouteNode second = secondSector.get(secondRank);
                     if (first.id().equals(second.id())) continue;
                     if (!isNonDegenerate(startNode.point(), first.point(), second.point())) continue;
                     RouteStrategy strategy = (i % 2 == 0) ? RouteStrategy.RECOMMENDED : RouteStrategy.EXPLORATION;
-                    sets.add(new WaypointSet(List.of(first.id(), second.id()), strategy));
+                    int tier = Math.max(firstRank, secondRank) + 1;
+                    sets.add(new WaypointSet(List.of(first.id(), second.id()), strategy, tier));
                 }
             }
         }
@@ -241,11 +258,17 @@ public final class CandidateSelector {
         int step = Math.max(2, SECTOR_COUNT / 3);
         for (int i = 0; i < SECTOR_COUNT; i++) {
             int j = (i + step) % SECTOR_COUNT;
-            for (RouteNode first : sectorNodes.get(i)) {
-                for (RouteNode second : sectorNodes.get(j)) {
+            List<RouteNode> firstSector = sectorNodes.get(i);
+            List<RouteNode> secondSector = sectorNodes.get(j);
+            for (int firstRank = 0; firstRank < firstSector.size(); firstRank++) {
+                RouteNode first = firstSector.get(firstRank);
+                for (int secondRank = 0; secondRank < secondSector.size(); secondRank++) {
+                    RouteNode second = secondSector.get(secondRank);
                     if (first.id().equals(second.id())) continue;
                     if (!isNonDegenerate(startNode.point(), first.point(), second.point())) continue;
-                    sets.add(new WaypointSet(List.of(first.id(), second.id()), RouteStrategy.EXPLORATION));
+                    int tier = Math.max(firstRank, secondRank) + 1;
+                    sets.add(new WaypointSet(
+                            List.of(first.id(), second.id()), RouteStrategy.EXPLORATION, tier));
                 }
             }
         }
@@ -283,14 +306,16 @@ public final class CandidateSelector {
             if (!isNonDegenerate(second.point(), first.point(), third.point())) continue;
 
             // Also try mixing the 2nd-best alternatives for diversity
-            sets.add(new WaypointSet(List.of(first.id(), second.id(), third.id()), RouteStrategy.PARK));
+            sets.add(new WaypointSet(
+                    List.of(first.id(), second.id(), third.id()), RouteStrategy.PARK, 1));
 
             if (si.size() > 1) {
                 RouteNode alt = si.get(1);
                 if (!alt.id().equals(second.id()) && !alt.id().equals(third.id())
                         && isNonDegenerate(startNode.point(), alt.point(), second.point())
                         && isNonDegenerate(startNode.point(), alt.point(), third.point())) {
-                    sets.add(new WaypointSet(List.of(alt.id(), second.id(), third.id()), RouteStrategy.PARK));
+                    sets.add(new WaypointSet(
+                            List.of(alt.id(), second.id(), third.id()), RouteStrategy.PARK, 2));
                 }
             }
         }
@@ -323,7 +348,10 @@ public final class CandidateSelector {
                         r * 0.35, preferences, excluded);
                 if (second == null) continue;
                 if (!isNonDegenerate(startNode.point(), first.point(), second.point())) continue;
-                sets.add(new WaypointSet(List.of(first.id(), second.id()), RouteStrategy.RECOMMENDED));
+                sets.add(new WaypointSet(
+                        List.of(first.id(), second.id()),
+                        RouteStrategy.RECOMMENDED,
+                        TOP_NODES_PER_SECTOR + 1));
             }
         }
     }
@@ -427,8 +455,16 @@ public final class CandidateSelector {
             UserPreferences preferences,
             RouteGraph graph,
             RouteNode startNode) {
-        double targetOutboundM = (GeoUtils.resolveTargetDistanceKm(preferences) * 1000) / 2;
         Map<String, Double> roadDistances = Pathfinding.singleSourceShortestDistances(graph, startNode.id());
+        return findOutAndBackDestinations(preferences, graph, startNode, roadDistances);
+    }
+
+    public static List<RouteNode> findOutAndBackDestinations(
+            UserPreferences preferences,
+            RouteGraph graph,
+            RouteNode startNode,
+            Map<String, Double> roadDistances) {
+        double targetOutboundM = (GeoUtils.resolveTargetDistanceKm(preferences) * 1000) / 2;
         double hardCapM = Math.max(400, targetOutboundM * 0.25);
 
         List<Candidate> candidates = new ArrayList<>();
@@ -510,9 +546,16 @@ public final class CandidateSelector {
     // Internal data types
     // -------------------------------------------------------------------------
 
-    public record WaypointSet(List<String> nodeIds, RouteStrategy strategy) {
+    public record WaypointSet(List<String> nodeIds, RouteStrategy strategy, int tier) {
+        public WaypointSet(List<String> nodeIds, RouteStrategy strategy) {
+            this(nodeIds, strategy, TOP_NODES_PER_SECTOR + 1);
+        }
+
         public WaypointSet {
             nodeIds = List.copyOf(nodeIds);
+            if (tier < 1) {
+                throw new IllegalArgumentException("tier must be positive");
+            }
         }
     }
 

@@ -33,24 +33,42 @@ public final class RouteDiversity {
             List<GeneratedRouteCandidate> routes,
             double maxEdgeOverlap,
             double centroidThresholdKm) {
-        List<GeneratedRouteCandidate> kept = new ArrayList<>();
+        return filterDiverseRoutes(routes, maxEdgeOverlap, centroidThresholdKm, Integer.MAX_VALUE);
+    }
+
+    public static List<GeneratedRouteCandidate> filterDiverseRoutes(
+            List<GeneratedRouteCandidate> routes,
+            double maxEdgeOverlap,
+            double centroidThresholdKm,
+            int maxResults) {
+        if (maxResults <= 0) {
+            return List.of();
+        }
+
+        List<PreparedRoute> kept = new ArrayList<>();
+        List<GeneratedRouteCandidate> result = new ArrayList<>();
         for (GeneratedRouteCandidate route : routes) {
+            PreparedRoute prepared = prepare(route);
             boolean overlaps = false;
-            for (GeneratedRouteCandidate keptRoute : kept) {
-                if (edgeOverlap(route, keptRoute) > maxEdgeOverlap) {
+            for (PreparedRoute keptRoute : kept) {
+                if (centroidDistance(prepared.centroid(), keptRoute.centroid()) < centroidThresholdKm) {
                     overlaps = true;
                     break;
                 }
-                if (centroidDistance(route, keptRoute) < centroidThresholdKm) {
+                if (edgeOverlap(prepared, keptRoute) > maxEdgeOverlap) {
                     overlaps = true;
                     break;
                 }
             }
             if (!overlaps) {
-                kept.add(route);
+                kept.add(prepared);
+                result.add(route);
+                if (result.size() >= maxResults) {
+                    break;
+                }
             }
         }
-        return kept;
+        return result;
     }
 
     /**
@@ -75,10 +93,9 @@ public final class RouteDiversity {
      * <p>Time complexity: O(E_a + E_b) — builds O(1) lookup maps once per route,
      * then iterates the intersection. Previously O(E_a · E_b) due to distanceByEdge scans.
      */
-    private static double edgeOverlap(GeneratedRouteCandidate a, GeneratedRouteCandidate b) {
-        // Build edge → accumulated distance maps once for each route (O(E) each).
-        Map<String, Double> distA = buildEdgeDistanceMap(a);
-        Map<String, Double> distB = buildEdgeDistanceMap(b);
+    private static double edgeOverlap(PreparedRoute a, PreparedRoute b) {
+        Map<String, Double> distA = a.edgeDistances();
+        Map<String, Double> distB = b.edgeDistances();
 
         // Iterate the smaller map and intersect with the larger (O(min(E_a, E_b))).
         if (distB.size() < distA.size()) {
@@ -91,8 +108,17 @@ public final class RouteDiversity {
                 sharedDistance += Math.min(entry.getValue(), dB);
             }
         }
-        double shorterDistance = Math.min(a.candidate().distanceKm(), b.candidate().distanceKm()) * 1000;
+        double shorterDistance = Math.min(
+                a.route().candidate().distanceKm(),
+                b.route().candidate().distanceKm()) * 1000;
         return shorterDistance > 0 ? sharedDistance / shorterDistance : 0;
+    }
+
+    private static PreparedRoute prepare(GeneratedRouteCandidate route) {
+        return new PreparedRoute(
+                route,
+                buildEdgeDistanceMap(route),
+                centroid(route.candidate().geometry()));
     }
 
     /** Builds an undirectedKey → total distance map for a route's edges in O(E). */
@@ -110,11 +136,9 @@ public final class RouteDiversity {
      * Haversine distance between the geographic centroids of two routes' geometry.
      * The centroid is approximated as the mean of all geometry coordinates.
      */
-    private static double centroidDistance(GeneratedRouteCandidate a, GeneratedRouteCandidate b) {
-        LatLng ca = centroid(a.candidate().geometry());
-        LatLng cb = centroid(b.candidate().geometry());
-        if (ca == null || cb == null) return Double.MAX_VALUE;
-        return GeoUtils.haversineDistanceKm(ca, cb);
+    private static double centroidDistance(LatLng a, LatLng b) {
+        if (a == null || b == null) return Double.MAX_VALUE;
+        return GeoUtils.haversineDistanceKm(a, b);
     }
 
     private static LatLng centroid(List<LatLng> geometry) {
@@ -125,6 +149,12 @@ public final class RouteDiversity {
             sumLng += p.lng();
         }
         return new LatLng(sumLat / geometry.size(), sumLng / geometry.size());
+    }
+
+    private record PreparedRoute(
+            GeneratedRouteCandidate route,
+            Map<String, Double> edgeDistances,
+            LatLng centroid) {
     }
 
     // ------------------------------------------------------------------

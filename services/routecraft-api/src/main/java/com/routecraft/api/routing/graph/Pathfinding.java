@@ -45,7 +45,7 @@ public final class Pathfinding {
      * <p>Time complexity: O((V + E) log V) with the haversine heuristic.
      * Space complexity: O(V) for the cost/cameFrom maps and priority queue.
      */
-    static Optional<PathResult> findShortestPath(
+    public static Optional<PathResult> findShortestPath(
             RouteGraph graph,
             String startId,
             String endId,
@@ -110,6 +110,127 @@ public final class Pathfinding {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Builds one preference-weighted shortest-path tree from {@code startId}.
+     *
+     * <p>This is substantially cheaper than running A* independently for many destinations.
+     * Each reachable node stores both the optimized cost and the physical distance of that
+     * optimized path, so callers can select destinations by route length and reconstruct the
+     * corresponding path without another graph search.
+     */
+    public static ShortestPathTree buildShortestPathTree(
+            RouteGraph graph,
+            String startId,
+            UserPreferences preferences) {
+        return buildShortestPathTree(graph, startId, EdgeCost.PreferenceCache.of(preferences));
+    }
+
+    public static ShortestPathTree buildShortestPathTree(
+            RouteGraph graph,
+            String startId,
+            EdgeCost.PreferenceCache prefCache) {
+        Map<String, Step> cameFrom = new HashMap<>();
+        Map<String, Double> costByNode = new HashMap<>();
+        Map<String, Double> distanceByNode = new HashMap<>();
+        PriorityQueue<QueueItem> queue = new PriorityQueue<>(Comparator.comparingDouble(QueueItem::priority));
+        Set<String> settled = new HashSet<>();
+
+        costByNode.put(startId, 0.0);
+        distanceByNode.put(startId, 0.0);
+        queue.offer(new QueueItem(startId, 0));
+
+        while (!queue.isEmpty()) {
+            QueueItem current = queue.poll();
+            if (!settled.add(current.nodeId)) {
+                continue;
+            }
+
+            double currentCost = costByNode.getOrDefault(current.nodeId, 0.0);
+            double currentDistance = distanceByNode.getOrDefault(current.nodeId, 0.0);
+            for (RouteEdge edge : graph.adjacent(current.nodeId)) {
+                double edgeCost = EdgeCost.compute(edge, prefCache);
+                if (!Double.isFinite(edgeCost)) {
+                    continue;
+                }
+
+                double nextCost = currentCost + edgeCost;
+                Double known = costByNode.get(edge.to());
+                if (known == null || nextCost < known) {
+                    costByNode.put(edge.to(), nextCost);
+                    distanceByNode.put(edge.to(), currentDistance + edge.distanceM());
+                    cameFrom.put(edge.to(), new Step(current.nodeId, edge));
+                    queue.offer(new QueueItem(edge.to(), nextCost));
+                }
+            }
+        }
+
+        return new ShortestPathTree(startId, cameFrom, costByNode, distanceByNode);
+    }
+
+    /**
+     * Generates practical alternative paths with repeated, edge-penalized A* searches.
+     *
+     * <p>Unlike Yen's exact K-shortest algorithm, this performs at most
+     * {@code maxPaths + 3} bounded searches instead of one search per spur node. RouteCraft ultimately needs a small set of
+     * diverse, preference-scored routes rather than an exact K-shortest ordering, so the bounded
+     * search budget is a better fit for the product behavior.
+     */
+    public static List<PathResult> findDiversePaths(
+            RouteGraph graph,
+            String startId,
+            String endId,
+            UserPreferences preferences,
+            int maxPaths) {
+        return findDiversePaths(
+                graph, startId, endId, EdgeCost.PreferenceCache.of(preferences), maxPaths);
+    }
+
+    public static List<PathResult> findDiversePaths(
+            RouteGraph graph,
+            String startId,
+            String endId,
+            EdgeCost.PreferenceCache prefCache,
+            int maxPaths) {
+        if (maxPaths <= 0) {
+            return List.of();
+        }
+
+        final double penaltyPerMetre = 0.75;
+        List<PathResult> result = new ArrayList<>(maxPaths);
+        Set<String> signatures = new HashSet<>();
+        Map<String, Double> edgePenalties = new HashMap<>();
+
+        int maxAttempts = maxPaths + 3;
+        for (int attempt = 0; attempt < maxAttempts && result.size() < maxPaths; attempt++) {
+            PathOptions options = edgePenalties.isEmpty()
+                    ? PathOptions.empty()
+                    : new PathOptions(null, null, edgePenalties);
+            Optional<PathResult> path = findShortestPath(
+                    graph,
+                    startId,
+                    endId,
+                    prefCache,
+                    options);
+            if (path.isEmpty()) {
+                break;
+            }
+
+            String signature = pathSignature(path.get());
+            if (signatures.add(signature)) {
+                result.add(path.get());
+            }
+
+            for (RouteEdge edge : path.get().edges()) {
+                edgePenalties.merge(
+                        edge.undirectedKey(),
+                        edge.distanceM() * penaltyPerMetre,
+                        Double::sum);
+            }
+        }
+
+        return result;
     }
 
 
@@ -397,6 +518,39 @@ public final class Pathfinding {
             cost += path.cost();
         }
         return pathFromEdges(graph, nodeIds, edges, cost);
+    }
+
+    public static final class ShortestPathTree {
+        private final String startId;
+        private final Map<String, Step> cameFrom;
+        private final Map<String, Double> costByNode;
+        private final Map<String, Double> pathDistancesM;
+
+        private ShortestPathTree(
+                String startId,
+                Map<String, Step> cameFrom,
+                Map<String, Double> costByNode,
+                Map<String, Double> pathDistancesM) {
+            this.startId = startId;
+            this.cameFrom = cameFrom;
+            this.costByNode = costByNode;
+            this.pathDistancesM = java.util.Collections.unmodifiableMap(pathDistancesM);
+        }
+
+        public Map<String, Double> pathDistancesM() {
+            return pathDistancesM;
+        }
+
+        public Optional<PathResult> pathTo(RouteGraph graph, String endId) {
+            if (startId.equals(endId)) {
+                return Optional.of(pathFromEdges(graph, List.of(startId), List.of(), 0));
+            }
+            Double totalCost = costByNode.get(endId);
+            if (totalCost == null) {
+                return Optional.empty();
+            }
+            return Optional.of(reconstructPath(graph, startId, endId, cameFrom, totalCost));
+        }
     }
 
     private record QueueItem(String nodeId, double priority) {
