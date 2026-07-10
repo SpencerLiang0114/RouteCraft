@@ -57,6 +57,7 @@ public final class Pathfinding {
 
         PriorityQueue<QueueItem> queue = new PriorityQueue<>(Comparator.comparingDouble(QueueItem::priority));
         queue.offer(new QueueItem(startId, 0));
+        RouteNode targetNode = graph.nodes().get(endId);
         Map<String, Step> cameFrom = new HashMap<>();
         Map<String, Double> costSoFar = new HashMap<>();
         costSoFar.put(startId, 0.0);
@@ -77,6 +78,7 @@ public final class Pathfinding {
                         costSoFar.getOrDefault(endId, 0.0)));
             }
 
+            double currentCost = costSoFar.getOrDefault(current.nodeId, 0.0);
             for (RouteEdge edge : graph.adjacent(current.nodeId)) {
                 if (blockedEdges != null && (blockedEdges.contains(edge.id()) || blockedEdges.contains(edge.undirectedKey()))) {
                     continue;
@@ -97,14 +99,13 @@ public final class Pathfinding {
                     penalty = byId != null ? byId : (byKey != null ? byKey : 0);
                 }
 
-                double currentCost = costSoFar.getOrDefault(current.nodeId, 0.0);
                 double nextCost = currentCost + cost + penalty;
                 Double known = costSoFar.get(edge.to());
 
                 if (known == null || nextCost < known) {
                     costSoFar.put(edge.to(), nextCost);
                     cameFrom.put(edge.to(), new Step(current.nodeId, edge));
-                    queue.offer(new QueueItem(edge.to(), nextCost + heuristicCost(graph, edge.to(), endId)));
+                    queue.offer(new QueueItem(edge.to(), nextCost + heuristicCost(graph, edge.to(), targetNode)));
                 }
             }
         }
@@ -234,9 +235,8 @@ public final class Pathfinding {
     }
 
 
-    private static double heuristicCost(RouteGraph graph, String fromId, String toId) {
+    private static double heuristicCost(RouteGraph graph, String fromId, RouteNode to) {
         RouteNode from = graph.nodes().get(fromId);
-        RouteNode to = graph.nodes().get(toId);
         if (from == null || to == null) {
             return 0;
         }
@@ -470,11 +470,11 @@ public final class Pathfinding {
             if (!settled.add(current.nodeId)) {
                 continue;
             }
+            double currentDist = distances.getOrDefault(current.nodeId, 0.0);
             for (RouteEdge edge : graph.adjacent(current.nodeId)) {
                 if (!edge.accessAllowed()) {
                     continue;
                 }
-                double currentDist = distances.getOrDefault(current.nodeId, 0.0);
                 double nextDist = currentDist + edge.distanceM();
                 Double known = distances.get(edge.to());
                 if (known == null || nextDist < known) {
