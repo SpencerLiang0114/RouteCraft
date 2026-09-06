@@ -145,6 +145,6 @@ pnpm lint
 pnpm build
 ```
 
-The migration passed 27 Java tests, seven Rust unit tests and the 54-case Rust differential test. The recorded matrix checks graph attributes, candidate IDs and paths, field presence, enums, explanations and exact published rounding, using a 1e-6 tolerance for internal floating-point values. Real Docker integration covers the full matrix, restart and Java rollback; the frontend API-client smoke verifies one persisted batch and valid PostGIS geometry. CI runs these backend and integration checks on pushes and pull requests.
+The merged migration passed 28 Java tests, seven Rust unit tests and the 54-case Rust differential test. The recorded matrix checks graph attributes, candidate IDs and paths, field presence, enums, explanations and exact published rounding, using a 1e-6 tolerance for internal floating-point values. Real Docker integration covers the full matrix, restart and Java rollback; the frontend API-client smoke verifies one persisted batch and valid PostGIS geometry. CI runs these backend and integration checks on pushes and pull requests.
 
 Use the [verification instructions](services/routing-compat/README.md#verification) to create the separate integration database and run the Docker/API-client checks. See [benchmark reproduction](services/routing-compat/README.md#performance-and-adoption) for the CPU and HTTP/memory harnesses. OpenStreetMap fixtures include source queries, capture metadata and [attribution](https://www.openstreetmap.org/copyright).
