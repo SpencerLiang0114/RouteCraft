@@ -1,0 +1,290 @@
+{
+  "javaReferenceBase": "e7f63fe5f5a4e60c31a4c2ec501560c19d91abe4",
+  "files": [
+    {
+      "file": "hilly-cycling-loop-0.reference.json.gz",
+      "bytes": 649288,
+      "sha256": "6bba37a29ecf5e40538e512a87789c5985005367181cef152bae89ca12d605aa"
+    },
+    {
+      "file": "hilly-cycling-loop-1.reference.json.gz",
+      "bytes": 655625,
+      "sha256": "7590cf9ffc2577658ddae4ca2bd7845331f6553873dab7ecec2062359e2f985c"
+    },
+    {
+      "file": "hilly-cycling-out_and_back-0.reference.json.gz",
+      "bytes": 650274,
+      "sha256": "b416940e7fbcb06299fc1131e0242cc8b48adc4a4b696365790851e76bc7ac56"
+    },
+    {
+      "file": "hilly-cycling-out_and_back-1.reference.json.gz",
+      "bytes": 653949,
+      "sha256": "c702e07369a7bd9aeb58036186440d7cfaf06fb2f6111d63126da38333438275"
+    },
+    {
+      "file": "hilly-cycling-point_to_point-0.reference.json.gz",
+      "bytes": 653384,
+      "sha256": "1ee93998d9ab8b2908475cc23a58f54a1d4abddd36b7418206be159cd0868d9c"
+    },
+    {
+      "file": "hilly-cycling-point_to_point-1.reference.json.gz",
+      "bytes": 655830,
+      "sha256": "9d62d93a49753151c783c0eb290d6df66760398418bee3e8bba2fcd54bb13233"
+    },
+    {
+      "file": "hilly-hiking-loop-0.reference.json.gz",
+      "bytes": 2604381,
+      "sha256": "cb2dfa3b760ce2f798cd8932f5e30a17d1c8486a04a520209586c2d41ce0e782"
+    },
+    {
+      "file": "hilly-hiking-loop-1.reference.json.gz",
+      "bytes": 2607132,
+      "sha256": "5ca3d78001b08dadeee0fdf61ef12bc846ea7ad5cb1f2947b5d052c182f18789"
+    },
+    {
+      "file": "hilly-hiking-out_and_back-0.reference.json.gz",
+      "bytes": 2605628,
+      "sha256": "fe9615ceaf452151895dba9d8f4e233ac72d36ac7e41f7ebdb1300df3b2a9283"
+    },
+    {
+      "file": "hilly-hiking-out_and_back-1.reference.json.gz",
+      "bytes": 2604068,
+      "sha256": "12c3e40e3ec2c077b5961fcd3a355004b5db54651458e1d368b4cf5829865926"
+    },
+    {
+      "file": "hilly-hiking-point_to_point-0.reference.json.gz",
+      "bytes": 2605513,
+      "sha256": "d3132bcd75103cd2329bd2645e22134da697ab4d682ce0b6b1fe31a5c875113a"
+    },
+    {
+      "file": "hilly-hiking-point_to_point-1.reference.json.gz",
+      "bytes": 2607977,
+      "sha256": "3e4a9a79bd74638cc0cdb0da14c30bbef4c9a1d6bf65537db56ea15a8a400597"
+    },
+    {
+      "file": "hilly-running-loop-0.reference.json.gz",
+      "bytes": 2604970,
+      "sha256": "07a5d2a882a8a06813b70724269858038c752fd631debb8a5feb967f2bad0e9b"
+    },
+    {
+      "file": "hilly-running-loop-1.reference.json.gz",
+      "bytes": 2605959,
+      "sha256": "0606c9e4bd2cf6b99313fd1c07352e73d1ddb9b9a76c39f205431b93f29d1d27"
+    },
+    {
+      "file": "hilly-running-out_and_back-0.reference.json.gz",
+      "bytes": 2605187,
+      "sha256": "a718f84dda12c8e8bee44ba255f06a8f47aa9c3d110f3e57b40cf7d77d378293"
+    },
+    {
+      "file": "hilly-running-out_and_back-1.reference.json.gz",
+      "bytes": 2605915,
+      "sha256": "abf2ce94a91cbcc11d47fdf31de2e289ee8dbe8e615d051d6c63bd5531b6396a"
+    },
+    {
+      "file": "hilly-running-point_to_point-0.reference.json.gz",
+      "bytes": 2605328,
+      "sha256": "81523ed771582c5c196a23ab0acee8c84a94472c018af2f2271e1cc2ad5c04de"
+    },
+    {
+      "file": "hilly-running-point_to_point-1.reference.json.gz",
+      "bytes": 2609896,
+      "sha256": "ee976600fbf2f159c2d58d903242ae3111dc75aea92f42a976acda71d83ee1a5"
+    },
+    {
+      "file": "hilly.json",
+      "bytes": 2108310,
+      "sha256": "f43ed404ba3768d9e3504de70e9eb6be6f6bdf5107eea7ec4b9a11f2879c9858"
+    },
+    {
+      "file": "park-cycling-loop-0.reference.json.gz",
+      "bytes": 125340,
+      "sha256": "b7e7e3db6eebff1df0c100b8fe543be08822e21aea3d15f35913c1a28b8e777f"
+    },
+    {
+      "file": "park-cycling-loop-1.reference.json.gz",
+      "bytes": 126492,
+      "sha256": "471c235e18fba72ecd86c1d2d8b735fd36463748421a11965080e6c43469dc35"
+    },
+    {
+      "file": "park-cycling-out_and_back-0.reference.json.gz",
+      "bytes": 126336,
+      "sha256": "963edcd88d530121438707dc51472a0a3ef60a637f8e44928f7431cab638e495"
+    },
+    {
+      "file": "park-cycling-out_and_back-1.reference.json.gz",
+      "bytes": 127219,
+      "sha256": "d49ab9875c71cfcc2206365d72cf1bfd22331c6d215a9b57ef9ad7ee2e38846d"
+    },
+    {
+      "file": "park-cycling-point_to_point-0.reference.json.gz",
+      "bytes": 127837,
+      "sha256": "1e76e386508c28857b3f29784a48877dedbb2e2e03c44fa5dd7118e6c76eeaa0"
+    },
+    {
+      "file": "park-cycling-point_to_point-1.reference.json.gz",
+      "bytes": 129344,
+      "sha256": "12f1cf58db908a5ce53110bd6221a59aa1b022c423ee7921542daebcca58da89"
+    },
+    {
+      "file": "park-hiking-loop-0.reference.json.gz",
+      "bytes": 835495,
+      "sha256": "03bd0498bacb458f98fe6451c85e19810c1742cac14d8fa099aa65f3f1b23f6b"
+    },
+    {
+      "file": "park-hiking-loop-1.reference.json.gz",
+      "bytes": 834685,
+      "sha256": "2390522bbbcb42a61d92ae8179994fa12e4b0946f16ab5467338b96390484022"
+    },
+    {
+      "file": "park-hiking-out_and_back-0.reference.json.gz",
+      "bytes": 834864,
+      "sha256": "7672a6a1685561fdc12bcf3a24d4b8c3163036b346134b3fecff68658373c499"
+    },
+    {
+      "file": "park-hiking-out_and_back-1.reference.json.gz",
+      "bytes": 832617,
+      "sha256": "7533db658f47b195ad089bf0d9df5f54e35f37a67e373ecca53cdd2e5d86e70e"
+    },
+    {
+      "file": "park-hiking-point_to_point-0.reference.json.gz",
+      "bytes": 834560,
+      "sha256": "651795564b5d9303d60c0b1e638a76b3761b3975df9487616bf55ec971511393"
+    },
+    {
+      "file": "park-hiking-point_to_point-1.reference.json.gz",
+      "bytes": 833074,
+      "sha256": "0e3d890b128ddb439e76e53e4da0669fda0a6d745899f80693ad0ec83fa6015d"
+    },
+    {
+      "file": "park-running-loop-0.reference.json.gz",
+      "bytes": 835471,
+      "sha256": "43972fa5464f2933feca81fac208e59eded216d6f2b680252cef484fc370a889"
+    },
+    {
+      "file": "park-running-loop-1.reference.json.gz",
+      "bytes": 836545,
+      "sha256": "d7f7bbc1f4033b5a5f34be7a4ab4f31f958360e4987235b67320f1b5b9ef80e4"
+    },
+    {
+      "file": "park-running-out_and_back-0.reference.json.gz",
+      "bytes": 834868,
+      "sha256": "ce792d3ab57c831e83c64cd7cdf0fb86fb83c2dc0691c247b8c62baac14f7b0f"
+    },
+    {
+      "file": "park-running-out_and_back-1.reference.json.gz",
+      "bytes": 835090,
+      "sha256": "4935d63b0c020eb6d7ee08a3dccf778a98422389023e8cdfc5edc0075348f6b9"
+    },
+    {
+      "file": "park-running-point_to_point-0.reference.json.gz",
+      "bytes": 834584,
+      "sha256": "533ca6f7cc37abbbc79526d54e4fc76cb6151dbe3d6bd33e6f81e5b1dc46f393"
+    },
+    {
+      "file": "park-running-point_to_point-1.reference.json.gz",
+      "bytes": 836848,
+      "sha256": "97b6b2c1783332a580a0471aeb30217399a3782b1f3d76293f6c8c701497682e"
+    },
+    {
+      "file": "park.json",
+      "bytes": 1270253,
+      "sha256": "17ecb1393b49b8ec0ee5a850f2386b6fab245e75bdea3b0b44ce927da1ab2f18"
+    },
+    {
+      "file": "urban-cycling-loop-0.reference.json.gz",
+      "bytes": 209288,
+      "sha256": "3baac72b27c03c4eccddd43c03dd35c42a14148cddb9053305baffd7107823f7"
+    },
+    {
+      "file": "urban-cycling-loop-1.reference.json.gz",
+      "bytes": 208243,
+      "sha256": "b9d4c5db8079625bf4ddae00f9bffc2201ec8b7c3e89e363362aff2f2b7683d8"
+    },
+    {
+      "file": "urban-cycling-out_and_back-0.reference.json.gz",
+      "bytes": 208763,
+      "sha256": "d1412481192301e13e0c59e93fd3f795b4f6fb854c46ada32d631dcb20f1f1d5"
+    },
+    {
+      "file": "urban-cycling-out_and_back-1.reference.json.gz",
+      "bytes": 208811,
+      "sha256": "513667e876716266142c0439574f69957de62c557434e1725fea0bca1c588ab2"
+    },
+    {
+      "file": "urban-cycling-point_to_point-0.reference.json.gz",
+      "bytes": 210139,
+      "sha256": "0e9833ed6a8fa64ad0765d637f24b7421eff3b420cfdca4621b4704d61d009a4"
+    },
+    {
+      "file": "urban-cycling-point_to_point-1.reference.json.gz",
+      "bytes": 209347,
+      "sha256": "191363d8a8ed83b861ab936c3abd911974ddf203eb340a95c2594afb4572ce7f"
+    },
+    {
+      "file": "urban-hiking-loop-0.reference.json.gz",
+      "bytes": 970451,
+      "sha256": "d45b78b09fdd58e0817a452aa10f018001a2091ff05adad44040c32e28076053"
+    },
+    {
+      "file": "urban-hiking-loop-1.reference.json.gz",
+      "bytes": 968571,
+      "sha256": "20d16fbc98c6c289e4c18c7c7dc9a891f41ce5a1b842ca7592e257a1460c909b"
+    },
+    {
+      "file": "urban-hiking-out_and_back-0.reference.json.gz",
+      "bytes": 970318,
+      "sha256": "16fcc1c6feb8ae68faf30e6c269ac1a72592c727d46c979cbe1b36acd8387353"
+    },
+    {
+      "file": "urban-hiking-out_and_back-1.reference.json.gz",
+      "bytes": 969252,
+      "sha256": "f41dc75883952c0e4d368b57e0e770d89844b605e4c8c9dfdb1533d69b9eb99a"
+    },
+    {
+      "file": "urban-hiking-point_to_point-0.reference.json.gz",
+      "bytes": 971319,
+      "sha256": "05accd22fb81401a81bb1191e23ae9dc42267cb49006ae56d7321f7e618ba85a"
+    },
+    {
+      "file": "urban-hiking-point_to_point-1.reference.json.gz",
+      "bytes": 970951,
+      "sha256": "8d3365e7a6b3f76a1d915379d5a0408732cf355fcb02952d205ad1a028923f41"
+    },
+    {
+      "file": "urban-running-loop-0.reference.json.gz",
+      "bytes": 970526,
+      "sha256": "fd5d0cee6de773cb50999218a05bc01b084a2be2540a8a1c92730be06b6d8c7e"
+    },
+    {
+      "file": "urban-running-loop-1.reference.json.gz",
+      "bytes": 970121,
+      "sha256": "6ad02148e7c653846ad59bcfa02ebe90bfb234c8478a3bbbfb8b470aebc21cf4"
+    },
+    {
+      "file": "urban-running-out_and_back-0.reference.json.gz",
+      "bytes": 970247,
+      "sha256": "75034bc0b6f12c708b05262e06d5443961352a4de010293fef2109edc1653e44"
+    },
+    {
+      "file": "urban-running-out_and_back-1.reference.json.gz",
+      "bytes": 970329,
+      "sha256": "6f2bf9090a783e053a71c4121460c7ffd70cd452d313a871de69f55f868fd5fa"
+    },
+    {
+      "file": "urban-running-point_to_point-0.reference.json.gz",
+      "bytes": 971193,
+      "sha256": "cf7de239bd1bcf17855d566291e9ae7f995facf1837f1ffc130d1bef015cee09"
+    },
+    {
+      "file": "urban-running-point_to_point-1.reference.json.gz",
+      "bytes": 971468,
+      "sha256": "95a0ad18524b8e40bb47ced1157268011b11a89798b8994447bacc7705d9fe5d"
+    },
+    {
+      "file": "urban.json",
+      "bytes": 940142,
+      "sha256": "5e93c6e3823239cd146580fff9e4a8547773a978b9cc418fe171ee2b0754fe7a"
+    }
+  ]
+}

@@ -16,6 +16,17 @@ services:
       timeout: 5s
       retries: 10
 
+  routecraft-engine:
+    build:
+      context: ./services/routecraft-engine
+    environment:
+      ROUTECRAFT_ENGINE_BUDGET_SECONDS: ${ROUTECRAFT_ENGINE_BUDGET_SECONDS:-30}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8090/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
   routecraft-api:
     build:
       context: ./services/routecraft-api
@@ -24,6 +35,9 @@ services:
       SPRING_DATASOURCE_USERNAME: routecraft
       SPRING_DATASOURCE_PASSWORD: routecraft
       SERVER_PORT: 18080
+      ROUTECRAFT_ROUTING_ENGINE: ${ROUTECRAFT_ROUTING_ENGINE:-rust}
+      ROUTECRAFT_ENGINE_URL: http://routecraft-engine:8090
+      ROUTECRAFT_ENGINE_BUDGET_SECONDS: ${ROUTECRAFT_ENGINE_BUDGET_SECONDS:-30}
       ROUTECRAFT_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     ports:
       - "18080:18080"

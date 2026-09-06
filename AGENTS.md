@@ -1,10 +1,12 @@
 <!-- BEGIN:nextjs-agent-rules -->
 # Repository layout
 
-This is a two-runtime monorepo:
+This is a three-runtime monorepo:
 
 - `apps/web/` — Next.js 16 frontend. All `pnpm` commands run from this directory.
 - `services/routecraft-api/` — Spring Boot 4 / Java 21 backend. All `./mvnw` commands run from this directory.
+
+- `services/routecraft-engine/` — Private Rust routing engine. All `cargo` commands run from this directory.
 
 There is no root `package.json` and no root package-manager workspace. The frontend uses pnpm from `apps/web/`.
 

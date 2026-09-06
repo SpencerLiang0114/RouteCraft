@@ -14,3 +14,7 @@ package-lock.json
 # Java / Maven
 services/routecraft-api/target/
 .vercel
+
+# Rust and migration measurements
+services/routecraft-engine/target/
+services/routing-compat/results/

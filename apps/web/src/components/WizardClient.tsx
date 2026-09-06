@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Route } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Route } from "lucide-react";
 import { ActivitySelector } from "./ActivitySelector";
 import { DepartureTimeSelector } from "./DepartureTimeSelector";
 import { PreferenceSliders } from "./PreferenceSliders";
@@ -133,9 +133,14 @@ export function WizardClient() {
             type="button"
             onClick={generateRoutes}
             disabled={isGenerating}
+            aria-busy={isGenerating}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 py-3 font-semibold text-white hover:bg-stone-950 disabled:cursor-wait disabled:opacity-70"
           >
-            <Route size={18} />
+            {isGenerating ? (
+              <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Route size={18} aria-hidden="true" />
+            )}
             {isGenerating ? "Generating..." : "Generate Routes"}
           </button>
         )}

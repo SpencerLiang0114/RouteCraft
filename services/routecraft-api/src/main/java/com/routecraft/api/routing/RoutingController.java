@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.routecraft.api.routes.GeneratedRouteBatchRepository;
+import com.routecraft.api.routing.engine.RoutingTimings;
 import com.routecraft.api.routing.model.LatLng;
 import com.routecraft.api.routing.model.RouteCandidate;
 import com.routecraft.api.routing.model.UserPreferences;
@@ -43,7 +44,9 @@ public class RoutingController {
 
         List<RouteCandidate> routes = generationService.generate(preferences);
         if (!routes.isEmpty()) {
-            batchRepository.saveTypedBatch(preferences, routes);
+            try (var stage = RoutingTimings.stage("persistence", "spring", preferences)) {
+                batchRepository.saveTypedBatch(preferences, routes);
+            }
         }
         return new RoutesResponse(routes);
     }
