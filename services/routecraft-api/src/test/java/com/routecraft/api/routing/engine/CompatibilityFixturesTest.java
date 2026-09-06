@@ -60,13 +60,38 @@ class CompatibilityFixturesTest {
                     if (record) {
                         try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(expected))) { out.write(MAPPER.writeValueAsBytes(actual)); }
                     } else {
-                        try (var in = new java.util.zip.GZIPInputStream(Files.newInputStream(expected))) { assertEquals(MAPPER.readTree(in), actual, name); }
+                        try (var in = new java.util.zip.GZIPInputStream(Files.newInputStream(expected))) { compare(MAPPER.readTree(in), actual, name); }
                     }
                     cases++;
                 }
             }
         }
         assertEquals(54, cases);
+    }
+
+    private static void compare(JsonNode expected, JsonNode actual, String path) {
+        assertNotNull(actual, path);
+        if (expected.isNumber() && actual.isNumber()) {
+            double value = expected.asDouble();
+            boolean rounded = path.contains(".candidates") && !path.contains(".geometry")
+                    && !path.contains(".waypoints")
+                    && (!path.contains(".metrics") || path.endsWith(".totalScore"));
+            assertEquals(value, actual.asDouble(), rounded ? 0 : Math.max(1e-6, Math.abs(value) * 1e-6), path);
+        } else if (expected.isObject() && actual.isObject()) {
+            assertEquals(expected.size(), actual.size(), path + " fields");
+            expected.properties().forEach(field -> compare(field.getValue(), actual.get(field.getKey()), path + "." + field.getKey()));
+        } else if (expected.isArray() && actual.isArray()) {
+            assertEquals(expected.size(), actual.size(), path + " length");
+            for (int i = 0; i < expected.size(); i++) compare(expected.get(i), actual.get(i), path + "[" + i + "]");
+        } else {
+            assertEquals(expected, actual, path);
+        }
+    }
+
+    @Test void toleratesInternalPlatformRoundingButPreservesPublishedValues() {
+        compare(MAPPER.readTree("0.46659902318361124"), MAPPER.readTree("0.46659902318361135"), "raw.parkScore");
+        assertThrows(AssertionError.class, () -> compare(MAPPER.readTree("0.4"), MAPPER.readTree("0.40001"), "raw.parkScore"));
+        assertThrows(AssertionError.class, () -> compare(MAPPER.readTree("1.23"), MAPPER.readTree("1.2300001"), "fixture.candidates[0].distanceKm"));
     }
 
     static Object snapshot(OsmGraphBuilder.GraphDraft draft) throws Exception {

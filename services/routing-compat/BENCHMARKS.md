@@ -62,11 +62,11 @@ Combined memory is the sampled simultaneous RSS of the Spring test JVM and Rust 
 - Actual frontend TypeScript API-client → Docker Spring/Rust → PostGIS smoke: three routes, one batch, valid SRID 4326 nonempty geometry.
 - Real Docker restart invalidated a prepared handle (`410 expired_handle`). Engine shutdown triggered one Java fallback and one persisted batch, confirmed by the Spring fallback log.
 - Java fallback tests cover OSM/elevation input reuse, cleanup, cancellation, no duplicate writes and no synthetic routes after failed rollback. Rust tests cover expiry, capacity, overload, malformed input, sparse graphs and cooperative cancellation/deadlines.
-- Formatting, Clippy and Docker builds passed. CI configuration was added; it has not been run on a remote CI runner in this task.
+- Formatting, Clippy and Docker builds passed. GitHub Actions runs both runtime checks and Docker integration; the pull request checks record the remote results.
 
 ## Integration with remote main
 
-The PR also retains the remote Java pathfinding lookup optimizations. Differential fixtures still pass after integrating those changes. Final elevation enrichment remains sequential as specified by this migration; the upstream enrichment test was adapted to the engine interface and verifies the preserved result and request-thread execution. The merged Java suite executes 28 tests successfully. The numeric measurements above were captured before this conflict resolution, against the explicitly recorded baseline; they are not a new benchmark of the remote optimization commit.
+The PR also retains the remote Java pathfinding lookup optimizations. Differential fixtures still pass after integrating those changes. Final elevation enrichment remains sequential as specified by this migration; the upstream enrichment test was adapted to the engine interface and verifies the preserved result and request-thread execution. The merged Java suite executes 29 tests successfully, including a regression for internal floating-point tolerance versus exact published rounding. Linux CI exposed an approximately 1e-16 internal score difference from macOS; the Java reference comparison now uses the specified 1e-6 internal tolerance, matching the Rust comparison. The numeric measurements above were captured before this conflict resolution, against the explicitly recorded baseline; they are not a new benchmark of the remote optimization commit.
 
 ## Reproduction and scope
 
