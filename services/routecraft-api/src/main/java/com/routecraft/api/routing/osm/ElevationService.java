@@ -90,7 +90,7 @@ public class ElevationService {
                 if (isTimeout(fallbackEx)) {
                     log.debug("Elevation lookup timed out after {}; skipping remaining nodes.", lookupTimeout);
                 } else {
-                    log.warn("Both elevation providers failed: {}", fallbackEx.getMessage());
+                    log.warn("Both elevation providers failed; continuing with partial elevation data");
                 }
             }
         }

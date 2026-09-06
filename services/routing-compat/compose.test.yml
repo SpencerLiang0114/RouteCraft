@@ -1,0 +1,9 @@
+# Explicit test-only override; the production engine has no published port.
+services:
+  routecraft-engine:
+    ports:
+      - "127.0.0.1:18090:8090"
+  routecraft-api:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/routecraft_migration_test
+      ROUTECRAFT_ROUTING_ENGINE: rust

@@ -1,0 +1,71 @@
+name: Routing engines
+on:
+  push:
+  pull_request:
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: services/routecraft-api/pom.xml
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: services/routecraft-engine
+      - run: ./mvnw clean test
+        working-directory: services/routecraft-api
+      - run: cargo fmt --check
+        working-directory: services/routecraft-engine
+      - run: cargo clippy --locked --all-targets -- -D warnings
+        working-directory: services/routecraft-engine
+      - run: cargo test --locked --release
+        working-directory: services/routecraft-engine
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: services/routecraft-api/pom.xml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/web/package.json
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+      - run: docker compose -f docker-compose.yml -f services/routing-compat/compose.test.yml up -d --build --wait postgres routecraft-engine
+      - run: docker compose exec -T postgres createdb -U routecraft routecraft_migration_test
+      - run: ./mvnw -Dtest=MigrationIntegrationTest -Droutecraft.integration=true -Droutecraft.routing.engine=rust -Droutecraft.routing.engine-url=http://localhost:18090 test
+        working-directory: services/routecraft-api
+      - run: docker compose -f docker-compose.yml -f services/routing-compat/compose.test.yml up -d --build routecraft-api
+      - run: |
+          for attempt in $(seq 1 60); do
+            if curl --silent http://localhost:18080/api/osm-graph-cache?bbox=not-ready >/dev/null; then break; fi
+            sleep 1
+          done
+          python3 services/routing-compat/scripts/seed-smoke.py
+          node services/routing-compat/scripts/frontend-smoke.cjs
+          python3 services/routing-compat/scripts/operations-smoke.py
+      - if: always()
+        run: docker compose logs > docker-integration.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: routing-integration
+          path: |
+            docker-integration.log
+            services/routing-compat/results/
+      - if: always()
+        run: docker compose -f docker-compose.yml -f services/routing-compat/compose.test.yml down -v

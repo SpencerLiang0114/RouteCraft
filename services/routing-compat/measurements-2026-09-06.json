@@ -1,0 +1,125 @@
+{
+  "date": "2026-09-06",
+  "hardware": "Apple M5 Pro, 48 GiB, macOS 26.6.2 ARM64",
+  "fixtureManifest": "fixtures-manifest.json",
+  "cpu": {
+    "hardware": "macOS-26.6.2-arm64-arm-64bit",
+    "samplesPerFixture": 20,
+    "warmupMatrixPasses": 2,
+    "fixtureCount": 54,
+    "memoryScope": "Standalone CPU driver RSS; not the combined production service memory adoption gate",
+    "java": {
+      "aggregateFixtureMedianMs": 12763.259621499996,
+      "requestMedianMs": 219.2154375,
+      "requestP95Ms": 789.551084,
+      "cpuStageThroughputPerSec": 4.221701735092051,
+      "peakDriverRssKiB": 447408,
+      "firstProcessRequest": {
+        "finalizeMs": 10.473583,
+        "generateMs": 141.301042,
+        "cpuStagesMs": 251.01545900000002,
+        "candidates": 1,
+        "prepareMs": 99.240834,
+        "fixture": "hilly-cycling-loop-0",
+        "engine": "java",
+        "sample": -2
+      }
+    },
+    "rust": {
+      "aggregateFixtureMedianMs": 3590.782500500001,
+      "requestMedianMs": 59.720146,
+      "requestP95Ms": 274.343625,
+      "cpuStageThroughputPerSec": 14.995649457805579,
+      "peakDriverRssKiB": 104240,
+      "firstProcessRequest": {
+        "candidates": 1,
+        "cpuStagesMs": 58.092042,
+        "finalizeMs": 3.245208,
+        "generateMs": 39.878084,
+        "prepareMs": 14.96875,
+        "fixture": "hilly-cycling-loop-0",
+        "engine": "rust",
+        "sample": -2
+      }
+    },
+    "aggregateCpuReductionPct": 71.86625825231003
+  },
+  "integration": {
+    "samplesPerFixture": 20,
+    "warmupsPerFixture": 3,
+    "memoryScope": "Spring test JVM plus Rust service RSS, sampled at 100 ms; excludes Maven coordinator and PostGIS. Includes identical test/Mockito fixture overhead in both JVMs.",
+    "coldScope": "First public routing request in each fresh Spring process; subsequent fixture first encounters are not process-cold.",
+    "providers": "Fixed OSM and node/route elevation values; real cache, HTTP, serialization, PostGIS writes",
+    "java": {
+      "firstProcessRequest": {
+        "status": 200,
+        "routeType": "loop",
+        "elapsedMs": 504.474667,
+        "fixture": "urban-running-loop-0",
+        "cacheState": "postgres_hit"
+      },
+      "medianMs": 223.6868955,
+      "p95Ms": 755.32825,
+      "throughputPerSec": 4.29387381819641,
+      "combinedPeakRssKiB": 813376,
+      "memorySamples": 2685,
+      "elapsedSeconds": 298.876430583,
+      "routeTypes": {
+        "loop": {
+          "medianMs": 303.5745,
+          "p95Ms": 813.024542
+        },
+        "out_and_back": {
+          "medianMs": 135.881375,
+          "p95Ms": 307.647375
+        },
+        "point_to_point": {
+          "medianMs": 161.7424375,
+          "p95Ms": 349.6905
+        }
+      }
+    },
+    "rust": {
+      "firstProcessRequest": {
+        "fixture": "urban-running-loop-0",
+        "elapsedMs": 321.616333,
+        "routeType": "loop",
+        "status": 200,
+        "cacheState": "miss"
+      },
+      "medianMs": 81.361354,
+      "p95Ms": 322.1665,
+      "throughputPerSec": 10.80225741200481,
+      "combinedPeakRssKiB": 865712,
+      "memorySamples": 1138,
+      "elapsedSeconds": 125.800554208,
+      "routeTypes": {
+        "loop": {
+          "medianMs": 107.6085835,
+          "p95Ms": 340.248292
+        },
+        "out_and_back": {
+          "medianMs": 64.42318750000001,
+          "p95Ms": 99.993375
+        },
+        "point_to_point": {
+          "medianMs": 67.59672900000001,
+          "p95Ms": 117.044166
+        }
+      }
+    },
+    "combinedMemoryIncreasePct": 6.434416555197098,
+    "routeP95ChangePct": {
+      "loop": -58.15030488956629,
+      "out_and_back": -67.49740673067663,
+      "point_to_point": -66.52921197458895
+    }
+  },
+  "gates": {
+    "compatibilityCasesPassed": 54,
+    "cpuReductionAtLeast25Pct": true,
+    "allRouteP95RegressionsAtMost5Pct": true,
+    "combinedMemoryIncreaseAtMost10Pct": true
+  },
+  "adoptedDefault": "rust"
+}

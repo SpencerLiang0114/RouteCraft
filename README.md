@@ -1,214 +1,150 @@
 # RouteCraft
 
-RouteCraft is an outdoor route planner for running, hiking, and cycling. Users can start from Strava data, upload a GPX/KML route file, or generate new route candidates with a guided wizard. Generation runs entirely on a Spring Boot service backed by OpenStreetMap and PostGIS.
-
-## User Flow
-
-`/` -> `/route-source` -> `/strava` | `/wizard` | `/upload` -> `/results` -> `/saved`
-
-## Demo
+RouteCraft plans outdoor routes for running, hiking, and cycling. Generate a loop, an out-and-back route, or point-to-point alternatives; import a GPX/KML file; or start from Strava data. Review candidates on a map, compare their distance and elevation, and save a route.
 
 ![RouteCraft generated route demo](docs/assets/routecraft2.png)
 
+## What improved
+
+The complete CPU routing pipeline now runs in a private Rust service. Spring Boot retains the public API, external providers, raw OSM caches, elevation enrichment and PostGIS persistence. The frontend API contract is unchanged, and the Java engine remains available for rollback.
+
+On the recorded 54-case matrix, Rust reduced the aggregate CPU-stage median by **71.9%**. Warm HTTP latency improved across every route type:
+
+| Measure | Java | Rust | Change |
+| --- | ---: | ---: | ---: |
+| Loop warm p95 | 813.02 ms | 340.25 ms | −58.15% |
+| Out-and-back warm p95 | 307.65 ms | 99.99 ms | −67.50% |
+| Point-to-point warm p95 | 349.69 ms | 117.04 ms | −66.53% |
+| Serial HTTP throughput | 4.29 requests/s | 10.80 requests/s | 2.52× |
+| Combined peak RSS | 794.31 MiB | 845.42 MiB | +6.43% |
+
+The matrix covers three recorded OSM areas, all three activities and route types, distance/duration targets, and two preference configurations. Each engine received 20 measured requests per fixture after warmup. Measurements ran on an Apple M5 Pro with 48 GiB RAM. HTTP measurements used real Spring/engine HTTP and PostGIS, with fixed OSM/elevation provider responses. Memory includes the Spring test JVM and Rust process; it excludes PostGIS and includes test-framework overhead. These are workstation measurements, not production concurrency results.
+
+Rust became the default after compatibility and all measured adoption gates passed: at least 25% lower aggregate CPU-stage median, no route type's warm p95 regression above 5%, and combined memory growth at most 10%. [Full results, cold-request observations and limitations](services/routing-compat/BENCHMARKS.md) · [Machine-readable measurements](services/routing-compat/measurements-2026-09-06.json).
+
 ## Architecture
 
-| Tier | Stack | Responsibility |
+| Component | Stack | Responsibility |
 | --- | --- | --- |
-| Frontend | Next.js 16 App Router, React 19, Tailwind v4, Zustand, Leaflet | User input, map rendering, results display, saved-route list |
-| Backend API | Spring Boot 4 on Java 21 | Request validation, route generation, persistence, OSM graph cache |
-| Database | PostgreSQL 16 + PostGIS 3.4 | Saved routes, generated batches, route candidates with `LineString` geometry, OSM cache, batch bounding boxes |
+| Web app | Next.js 16, React 19, Tailwind v4, Zustand, Leaflet | Wizard, imports, map, results and saved routes |
+| Public API | Spring Boot 4, Java 21 | Validation, OSM acquisition/cache, elevation providers, persistence, Strava and geocoding |
+| Private engine | Rust, Axum, Tokio, Serde, R-tree | Graph construction, spatial lookup, pathfinding, analysis and candidate selection |
+| Database | PostgreSQL 16, PostGIS 3.4 | Saved routes, generated batches/candidates, geometry and raw OSM cache |
 
-The frontend never owns routing business logic. It collects preferences, hits the Spring Boot API, and renders the resulting candidates on a map.
-
-```
-User → Next.js (form) → Spring Boot /api/routing/generate
-                          ↓
-                          ├─→ load OSM graph (cache or Overpass)
-                          ├─→ enrich with elevation (Open-Meteo)
-                          ├─→ run loop / out-and-back / point-to-point generator
-                          ├─→ rank, diversify, pick top 3
-                          ├─→ persist batch + candidates + bbox in PostGIS
-                          ↓
-Routes → Next.js (Leaflet) → User
-```
-
-## Repository layout
-
-```
-routecraft/
-├── apps/web/                  # Next.js 16 frontend
-├── services/routecraft-api/   # Spring Boot 4 / Java 21 backend
-├── docker-compose.yml         # local Postgres + API stack
-└── README.md
-```
-
-There is no root `package.json` and no root package-manager workspace — `cd apps/web` to run frontend pnpm commands, `cd services/routecraft-api` to run backend commands.
-
-## Run Locally
-
-RouteCraft is currently a local-first demo. The backend endpoints do not include
-authentication or per-user authorization, so do not expose `routecraft-api`
-directly to the public internet without adding those controls.
-
-Use three terminals:
-
-```bash
-# Terminal 1: database
-docker compose up postgres
+```mermaid
+sequenceDiagram
+    participant Web as Next.js
+    participant API as Spring Boot
+    participant Engine as Rust engine
+    participant Providers as OSM / elevation providers
+    participant DB as PostGIS
+    Web->>API: POST /api/routing/generate
+    API->>DB: Look up raw OSM cache
+    opt Cache miss
+        API->>Providers: Fetch OSM
+        API->>DB: Cache raw elements
+    end
+    API->>Engine: Prepare graph from elements + preferences
+    Engine-->>API: Handle + trimmed node coordinates
+    API->>Providers: Fetch node elevations
+    API->>Engine: Generate using handle + elevations
+    Engine-->>API: Selected candidates
+    API->>Engine: Release handle
+    API->>Providers: Enrich final route elevations sequentially
+    API->>DB: Persist one batch and candidates
+    API-->>Web: Existing routes response
 ```
 
-```bash
-# Terminal 2: backend API
-cd services/routecraft-api
-./mvnw spring-boot:run
-```
+The engine has no published port in default Compose. Handles expire after two minutes, retained graphs have a 512 MiB budget, and CPU concurrency is bounded by available processors. A configurable 30-second computation budget excludes Spring's provider calls.
 
-```bash
-# Terminal 3: frontend
-cd apps/web
-cp .env.example .env.local
-pnpm install
-pnpm dev
-```
+On Rust transport, restart, overload or deadline failure, Spring attempts Java once using the OSM and node elevations already acquired. Domain errors retain their existing public behavior. An engine outage does not directly select synthetic routes; the existing OSM-acquisition fallback remains. See the [migration guide](services/routing-compat/README.md) for protocol details, resource limits and failure tests.
 
-Open [http://localhost:3000](http://localhost:3000).
+## Run locally
 
-The Spring Boot API runs on [http://localhost:18080](http://localhost:18080). PostgreSQL/PostGIS runs on port `5432` with credentials from `docker-compose.yml`. Flyway applies `V1__routecraft_persistence.sql` and `V2__generated_route_batch_bbox.sql` on startup.
-
-You can also run the database and API together from the repo root:
+Start the database, API and Rust engine from the repository root:
 
 ```bash
 docker compose up --build
 ```
 
-Then run the frontend separately from `apps/web` with `pnpm dev`.
+Start the frontend in another terminal:
 
-Strava credentials are optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, and `STRAVA_REFRESH_TOKEN` in the backend environment to enable live segment loading; without them the Strava flow falls back to local mock data. The frontend `.env.local` only needs the API URL values from `.env.example`; backend-only values are documented in `services/routecraft-api/.env.example`.
+```bash
+cd apps/web
+cp .env.example .env.local
+pnpm install --frozen-lockfile
+pnpm dev
+```
 
-## Project Structure
+Open [localhost:3000](http://localhost:3000). The public API listens on [localhost:18080](http://localhost:18080); PostgreSQL uses port 5432 and the development credentials in Compose. Flyway applies the database migrations on startup.
 
-| Layer | Location | Responsibility |
-| --- | --- | --- |
-| Pages | `apps/web/src/app/` | Next.js App Router pages |
-| UI components | `apps/web/src/components/` | Route planning, results, maps, controls |
-| Browser API clients | `apps/web/src/lib/api-client/` | Fetch wrappers that call Spring Boot |
-| Spring Boot API | `services/routecraft-api/src/main/java/com/routecraft/api/` | Public route generation API, persistence, OSM cache |
-| Geocoding/Strava endpoints | `services/routecraft-api/src/main/java/com/routecraft/api/routing/osm/` | Backend endpoints that hide third-party credentials |
-| Shared frontend logic | `apps/web/src/lib/` | GPX/KML parsing, exporting, scoring/normalising imported routes |
-| Flow state | `apps/web/src/store/` | Zustand store for transient route flow state |
-| Domain types | `apps/web/src/types/` | Shared route, preference, and metric types |
+To select Java explicitly, recreate the API with:
 
-The Java backend is organised by responsibility:
+```bash
+ROUTECRAFT_ROUTING_ENGINE=java docker compose up -d routecraft-api
+```
 
-| Package | Role |
-| --- | --- |
-| `routing.model` | DTOs that mirror the TypeScript `RouteCandidate`/`UserPreferences` shape exactly |
-| `routing.graph` | `RouteGraph`, KD-tree, A\*, shortest-path trees, bounded alternatives, edge cost |
-| `routing.osm` | Overpass HTTP client, Open-Meteo elevation, OSM-tag scoring, anchor splicing |
-| `routing.generator` | Loop/out-and-back/point-to-point generators, candidate ranking, diversity filter, mock fallback graph |
-| `routing` | `RouteGenerationService` (orchestrator) and `RoutingController` |
-| `routes` | `GeneratedRouteBatchRepository`, `SavedRouteRepository`, payload helpers |
-| `osm` | OSM graph cache repository (PostGIS `gist` index) |
-| `config`, `common` | CORS, exception handling |
+For native Java development, start only PostGIS with `docker compose up -d postgres`, then run `ROUTECRAFT_ROUTING_ENGINE=java ./mvnw spring-boot:run` from `services/routecraft-api`. For native Rust, run `cargo run --release --bin routecraft-engine` from `services/routecraft-engine`, then start Spring with `ROUTECRAFT_ENGINE_URL=http://localhost:8090 ./mvnw spring-boot:run` from the API directory.
+
+Strava is optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN` and `STRAVA_REFRESH_TOKEN` to enable live segment loading; without them, that flow uses local mock data. Backend configuration is documented in [services/routecraft-api/.env.example](services/routecraft-api/.env.example). The frontend only needs its public API URL configuration.
+
+This is a local-first demo. The backend has no authentication or per-user authorization; add those controls before exposing it publicly.
+
+## Repository layout
+
+```text
+apps/web/                    Next.js frontend; run pnpm here
+services/routecraft-api/      Spring API and Java reference engine; run ./mvnw here
+services/routecraft-engine/   Rust library and private HTTP service; run cargo here
+services/routing-compat/      Recorded fixtures, differential tests and benchmarks
+docker-compose.yml           Local service stack
+.github/workflows/           Java, Rust and Docker integration CI
+```
+
+There is no root package.json or package-manager workspace.
+
+The user flow is `/` → `/route-source` → `/strava`, `/wizard` or `/upload` → `/results` → `/saved`.
+
+## Routing behavior
+
+Both engines preserve the existing access rules, scoring weights, search budgets, snapping, rounding, route names and explanations. The Rust implementation uses dense graph indices, contiguous adjacency, shared geometry and reusable search arrays. Green-feature scoring uses an R-tree broad phase followed by exact distance calculations, preserving containment, nearest-five selection, source-order ties and the 300 m cutoff.
+
+- **Loops:** tiered waypoints, reusable first legs and closing corridors, cumulative edge penalties, despiking and self-overlap checks.
+- **Out-and-back:** one preference-weighted shortest-path tree, followed by outbound reconstruction and exact retracing.
+- **Point-to-point:** bounded edge-penalized A* alternatives and target-distance detours.
+- **Selection:** distance filtering, preference-aware scoring and geometric diversity, with the existing relaxed thresholds and a maximum of three candidates.
+
+Scoring accounts for distance, elevation, parks, shade, safety, scenery, exploration, activity, route style and time of day. Spring preserves node-elevation deduplication, the 800-point cap, partial-provider behavior and sequential final route enrichment.
 
 ## Persistence
 
-| Table | Stores |
+| Table | Stored data |
 | --- | --- |
-| `saved_routes` | User-saved route payloads plus PostGIS `LineString` geometry |
-| `generated_route_batches` | One row per `POST /api/routing/generate` call: preferences, route count, candidate-derived bbox |
-| `generated_route_candidates` | Each generated candidate: route metadata, payload JSON, `LineString` geometry |
-| `osm_graph_cache` | Overpass element payloads keyed by bbox, with PostGIS envelope and TTL |
+| `saved_routes` | Saved route payloads and PostGIS LineString geometry |
+| `generated_route_batches` | Preferences, route count and indexed candidate-derived bounding box |
+| `generated_route_candidates` | Candidate metadata, payload JSON and SRID 4326 geometry |
+| `osm_graph_cache` | Raw Overpass elements keyed by bounding box, with expiry |
 
-The bounding box on `generated_route_batches` is computed from candidate geometries on insert and indexed (`gist`) for spatial filtering.
-
-## Route Generation Pipeline
-
-`POST /api/routing/generate` is handled by `RoutingController`. The flow:
-
-1. Validate `UserPreferences` (activity, route type, finite start coordinates, optional end coordinates).
-2. `RouteGenerationService.generate()` loads the OSM graph near the start (`OsmGraphLoader`).
-   - Check the in-process cache → check the PostGIS cache (`osm_graph_cache`) → fetch from Overpass and write both caches.
-   - Trim to the local radius (`graphRadiusKm` adapts to activity and target distance).
-   - Optionally enrich edges with Open-Meteo elevations (Open-Elevation as fallback).
-   - Splice user start (and end, if provided) onto the nearest edges.
-3. Dispatch by route type to `LoopGenerator`, `OutAndBackGenerator`, or `PointToPointGenerator`.
-4. Filter candidates using the target-distance tolerance (relaxed when fewer than three survive).
-5. Rank by total score, then drop geometrically similar candidates with `RouteDiversity`.
-6. Return the top three.
-7. Persist the batch (with bbox) and per-candidate `LineString` geometry in PostGIS.
-
-If OSM loading fails entirely, the service falls back to a synthetic graph (`MockGraph`) so the wizard still produces something to display.
-
-## Routing Algorithms
-
-### A\*
-
-`Pathfinding.findShortestPath()` uses Java's `PriorityQueue` as a min-heap. Each edge is scored by `EdgeCost.compute()`, which blends distance, route style, activity, elevation, time of day, and user preference weights.
-
-The heuristic is straight-line distance multiplied by `0.2`. `EdgeCost.compute()` floors every edge at `distance * 0.2`, so the heuristic stays admissible.
-
-```text
-priority = costSoFar[node]
-  + EdgeCost.compute(edge)
-  + edgePenalty
-  + distanceM(node, goal) * 0.2
-```
-
-`edgePenalty` lets each generator bias A\* away from specific edges without blocking them outright.
-
-### Loop Generation
-
-`LoopGenerator` picks tiered waypoint sets around the start at radii calibrated to land near the target round-trip distance. It runs A\* through the strongest tiers first, caches repeated first legs and closing corridors, and expands to broader tiers only when the current pool lacks enough target-matching, diverse routes. **Cumulative edge penalties** make edges used by earlier segments expensive for later segments, so the return leg uses different roads. A stack-based despike removes go-in/come-back artefacts at waypoint transitions, and a self-overlap filter (≤5 % strict, ≤15 % loose) rejects lollipop loops.
-
-### Out-and-Back
-
-`OutAndBackGenerator` builds one preference-weighted shortest-path tree from the start, stores both optimized cost and physical path distance for every reachable node, then reconstructs the best outbound paths for destinations near `target / 2`. The return leg retraces the outbound, making total distance deterministic (`2 × outbound`) without rerunning A\* for every destination.
-
-### Point-to-Point Alternatives
-
-`PointToPointGenerator` uses a bounded edge-penalized search to surface practical alternatives between the user's start and end:
-
-1. Find the cheapest path with A\*.
-2. Add cumulative penalties to its edges.
-3. Re-run A\* with the penalties so later paths prefer different corridors.
-4. Keep unique alternatives within a fixed search budget.
-
-For target-distance detours, a bounded heap keeps the best intermediate via-points, and the second leg is biased away from the first leg's edges so the two halves use different roads.
-
-`RouteDiversity.filterDiverseRoutes()` then removes candidates that are too geometrically similar.
-
-### Runtime-oriented search design
-
-The generators avoid multiplying full-graph searches when a shared result can be reused. Shortest-path trees replace repeated destination searches, loop first legs and spatial corridors are cached, route fingerprints are prepared once for diversity checks, and candidate generation stops after the required target-distance/diversity pool is available. On a synthetic 10 km `MockGraph` benchmark, route-generation time improved by approximately 2× for loops, 3× for out-and-back routes, and 5× for point-to-point routes; the benchmark excludes OSM loading and elevation services.
-
-## Scoring
-
-### Edge Cost
-
-`EdgeCost.compute()` controls path finding. It starts with physical distance, then adjusts cost with:
-
-- Elevation profile and slope
-- Route style bonuses for parks, shade, scenery, climbing, or exploration
-- Safety, shade, park, exploration, and scenery preferences
-- Time-of-day penalties for afternoon shade needs and night safety concerns
-- Activity-specific behaviour for running, hiking, and cycling
-- Road and surface type bonuses or penalties
-
-The final edge cost is floored at `distance * 0.2`.
-
-### Route Score
-
-`RouteAnalyzer.analyzeRoute()` produces per-route metrics; `RouteScoring.scoreRoute()` collapses them to a 0-100 score using activity-aware weights, then user preferences shift the weights further. Components: distance match, elevation fit, park access, shade cover, safety, exploration value, scenery.
+Each successful generation persists one batch and its candidates in a transaction.
 
 ## Verification
 
-```bash
-# Backend
-cd services/routecraft-api && ./mvnw test
+Run commands from the named runtime directory:
 
-# Frontend
-cd apps/web && pnpm lint && pnpm build
+```bash
+# services/routecraft-api
+./mvnw clean test
+
+# services/routecraft-engine
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked --release
+
+# apps/web
+pnpm lint
+pnpm build
 ```
 
-For an end-to-end smoke test, start Postgres and the API (`docker-compose up`), run `pnpm dev`, walk the wizard, and confirm a row appears in `generated_route_batches` with non-null `bbox`.
+The migration passed 27 Java tests, seven Rust unit tests and the 54-case Rust differential test. The recorded matrix checks graph attributes, candidate IDs and paths, field presence, enums, explanations and exact published rounding, using a 1e-6 tolerance for internal floating-point values. Real Docker integration covers the full matrix, restart and Java rollback; the frontend API-client smoke verifies one persisted batch and valid PostGIS geometry. CI runs these backend and integration checks on pushes and pull requests.
+
+Use the [verification instructions](services/routing-compat/README.md#verification) to create the separate integration database and run the Docker/API-client checks. See [benchmark reproduction](services/routing-compat/README.md#performance-and-adoption) for the CPU and HTTP/memory harnesses. OpenStreetMap fixtures include source queries, capture metadata and [attribution](https://www.openstreetmap.org/copyright).
