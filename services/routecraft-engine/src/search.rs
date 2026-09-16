@@ -47,6 +47,41 @@ pub struct Options {
     pub blocked_nodes: HashSet<usize>,
     pub penalties: HashMap<String, f64>,
 }
+/// Request-local penalties indexed by the original undirected endpoint key.
+/// The touched list permits reuse without clearing every graph edge.
+pub(crate) struct Penalties {
+    values: Vec<f64>,
+    present: Vec<bool>,
+    touched: Vec<usize>,
+}
+impl Penalties {
+    pub(crate) fn new(g: &Graph) -> Self {
+        Self {
+            values: vec![0.0; g.group_count],
+            present: vec![false; g.group_count],
+            touched: Vec::new(),
+        }
+    }
+    pub(crate) fn clear(&mut self) {
+        for group in self.touched.drain(..) {
+            self.values[group] = 0.0;
+            self.present[group] = false;
+        }
+    }
+    pub(crate) fn add(&mut self, group: usize, value: f64) {
+        if !self.present[group] {
+            self.present[group] = true;
+            self.touched.push(group);
+        }
+        self.values[group] += value;
+    }
+    pub(crate) fn scaled_from(&mut self, other: &Self, scale: f64) {
+        self.clear();
+        for &group in &other.touched {
+            self.add(group, other.values[group] * scale);
+        }
+    }
+}
 #[derive(Clone, Debug)]
 pub struct Path {
     pub nodes: Vec<usize>,
@@ -75,11 +110,12 @@ impl Path {
             cost,
         }
     }
-    pub fn combine(g: &Graph, paths: &[Self]) -> Self {
+    pub fn combine(g: &Graph, paths: &[impl std::borrow::Borrow<Self>]) -> Self {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
         let mut cost = 0.0;
         for (i, p) in paths.iter().enumerate() {
+            let p = p.borrow();
             nodes.extend(p.nodes.iter().skip(usize::from(i > 0)));
             edges.extend(&p.edges);
             cost += p.cost;
@@ -94,7 +130,7 @@ impl Path {
             self.cost,
         )
     }
-    pub fn despike(&self, g: &Graph) -> Self {
+    pub fn despike(self, g: &Graph) -> Self {
         let mut stack: Vec<usize> = Vec::new();
         for &e in &self.edges {
             if stack
@@ -107,7 +143,7 @@ impl Path {
             }
         }
         if stack.len() == self.edges.len() {
-            return self.clone();
+            return self;
         }
         if stack.is_empty() {
             return Self::from_edges(g, vec![self.nodes[0]], vec![], 0.0);
@@ -141,8 +177,8 @@ impl Path {
             .sum::<f64>()
             / self.distance
     }
-    fn signature(&self, g: &Graph) -> Vec<String> {
-        self.edges.iter().map(|&e| g.keys[e].clone()).collect()
+    fn signature(&self, g: &Graph) -> Vec<usize> {
+        self.edges.iter().map(|&e| g.groups[e]).collect()
     }
 }
 // Java PriorityQueue's equal-priority behavior (no extra ordinal tiebreaker).
@@ -193,6 +229,11 @@ pub struct Search<'a> {
     prev: Vec<usize>,
     settled: Vec<bool>,
     queue: Queue,
+    touched: Vec<usize>,
+    heuristic: Vec<f64>,
+    option_penalties: Vec<f64>,
+    option_blocked: Vec<bool>,
+    option_touched: Vec<usize>,
 }
 #[derive(Clone)]
 pub struct Tree {
@@ -203,6 +244,7 @@ pub struct Tree {
     pub discovery: Vec<usize>,
 }
 fn reconstruct(g: &Graph, start: usize, end: usize, prev: &[usize], cost: f64) -> Path {
+    crate::count!(path_reconstructions);
     let mut edges = Vec::new();
     let mut nodes = vec![end];
     let mut current = end;
@@ -242,13 +284,24 @@ impl<'a> Search<'a> {
             prev: vec![usize::MAX; n],
             settled: vec![false; n],
             queue: Queue::default(),
+            touched: Vec::new(),
+            heuristic: vec![f64::NAN; n],
+            option_penalties: vec![0.0; graph.edges.len()],
+            option_blocked: vec![false; graph.edges.len()],
+            option_touched: Vec::new(),
         }
     }
     fn reset(&mut self, start: usize) {
-        self.cost.fill(f64::INFINITY);
-        self.distance.fill(f64::INFINITY);
-        self.prev.fill(usize::MAX);
-        self.settled.fill(false);
+        crate::count!(search_calls);
+        crate::count!(touched_nodes);
+        for n in self.touched.drain(..) {
+            self.cost[n] = f64::INFINITY;
+            self.distance[n] = f64::INFINITY;
+            self.prev[n] = usize::MAX;
+            self.settled[n] = false;
+            self.heuristic[n] = f64::NAN;
+        }
+        self.touched.push(start);
         self.queue.0.clear();
         self.cost[start] = 0.0;
         self.distance[start] = 0.0;
@@ -261,9 +314,53 @@ impl<'a> Search<'a> {
         o: &Options,
     ) -> Result<Option<Path>, EngineError> {
         self.budget.check()?;
+        for e in self.option_touched.drain(..) {
+            self.option_penalties[e] = 0.0;
+            self.option_blocked[e] = false;
+        }
+        for key in &o.blocked_edges {
+            if let Some(edges) = self.graph.option_edges.get(key) {
+                for &e in edges {
+                    self.option_touched.push(e);
+                    self.option_blocked[e] = true;
+                }
+            }
+        }
+        for key in o.penalties.keys() {
+            if let Some(edges) = self.graph.option_edges.get(key) {
+                for &e in edges {
+                    self.option_touched.push(e);
+                    self.option_penalties[e] = o
+                        .penalties
+                        .get(&self.graph.edges[e].id)
+                        .or_else(|| o.penalties.get(&self.graph.keys[e]))
+                        .copied()
+                        .unwrap_or(0.0);
+                }
+            }
+        }
+        self.shortest_inner(start, end, &o.blocked_nodes, None)
+    }
+    pub(crate) fn shortest_indexed(
+        &mut self,
+        start: usize,
+        end: usize,
+        penalties: &Penalties,
+    ) -> Result<Option<Path>, EngineError> {
+        self.shortest_inner(start, end, &HashSet::new(), Some(penalties))
+    }
+    fn shortest_inner(
+        &mut self,
+        start: usize,
+        end: usize,
+        blocked_nodes: &HashSet<usize>,
+        penalties: Option<&Penalties>,
+    ) -> Result<Option<Path>, EngineError> {
+        self.budget.check()?;
         self.reset(start);
         let g = self.graph;
         while let Some((current, _)) = self.queue.pop() {
+            crate::count!(queue_pops);
             self.budget.check()?;
             if self.settled[current] {
                 continue;
@@ -273,11 +370,10 @@ impl<'a> Search<'a> {
                 return Ok(Some(reconstruct(g, start, end, &self.prev, self.cost[end])));
             }
             for &e in g.adjacent(current) {
+                crate::count!(relaxed_edges);
                 let to = g.to[e];
-                let edge = &g.edges[e];
-                if o.blocked_edges.contains(&edge.id)
-                    || o.blocked_edges.contains(&g.keys[e])
-                    || (to != end && o.blocked_nodes.contains(&to))
+                if (penalties.is_none() && self.option_blocked[e])
+                    || (to != end && blocked_nodes.contains(&to))
                 {
                     continue;
                 }
@@ -285,20 +381,20 @@ impl<'a> Search<'a> {
                 if !cost.is_finite() {
                     continue;
                 }
-                let penalty = o
-                    .penalties
-                    .get(&edge.id)
-                    .or_else(|| o.penalties.get(&g.keys[e]))
-                    .copied()
-                    .unwrap_or(0.0);
+                let penalty =
+                    penalties.map_or_else(|| self.option_penalties[e], |p| p.values[g.groups[e]]);
                 let next = self.cost[current] + cost + penalty;
                 if next < self.cost[to] {
+                    if !self.cost[to].is_finite() {
+                        crate::count!(touched_nodes);
+                        self.touched.push(to);
+                    }
                     self.cost[to] = next;
                     self.prev[to] = e;
-                    self.queue.push((
-                        to,
-                        next + distance(g.nodes[to].point, g.nodes[end].point) * 0.2,
-                    ));
+                    if self.heuristic[to].is_nan() {
+                        self.heuristic[to] = distance(g.nodes[to].point, g.nodes[end].point) * 0.2;
+                    }
+                    self.queue.push((to, next + self.heuristic[to]));
                 }
             }
         }
@@ -309,12 +405,14 @@ impl<'a> Search<'a> {
         let mut discovery = vec![start];
         let g = self.graph;
         while let Some((current, _)) = self.queue.pop() {
+            crate::count!(queue_pops);
             self.budget.check()?;
             if self.settled[current] {
                 continue;
             }
             self.settled[current] = true;
             for &e in g.adjacent(current) {
+                crate::count!(relaxed_edges);
                 let cost = self.costs[e];
                 if !cost.is_finite() {
                     continue;
@@ -323,6 +421,8 @@ impl<'a> Search<'a> {
                 let to = g.to[e];
                 if next < self.cost[to] {
                     if !self.cost[to].is_finite() {
+                        crate::count!(touched_nodes);
+                        self.touched.push(to);
                         discovery.push(to);
                     }
                     self.cost[to] = next;
@@ -348,20 +448,20 @@ impl<'a> Search<'a> {
     ) -> Result<Vec<Path>, EngineError> {
         let mut result = Vec::new();
         let mut signatures = HashSet::new();
-        let mut o = Options::default();
+        let mut penalties = Penalties::new(self.graph);
         for _ in 0..max + 3 {
             if result.len() >= max {
                 break;
             }
-            let Some(path) = self.shortest(start, end, &o)? else {
+            let Some(path) = self.shortest_indexed(start, end, &penalties)? else {
                 break;
             };
-            if signatures.insert(path.signature(self.graph)) {
-                result.push(path.clone());
-            }
+            let unique = signatures.insert(path.signature(self.graph));
             for &e in &path.edges {
-                *o.penalties.entry(self.graph.keys[e].clone()).or_insert(0.0) +=
-                    self.graph.edges[e].distance_m * 0.75;
+                penalties.add(self.graph.groups[e], self.graph.edges[e].distance_m * 0.75);
+            }
+            if unique {
+                result.push(path);
             }
         }
         Ok(result)
@@ -510,6 +610,108 @@ mod tests {
         assert_eq!(tree.path(&g, 2).unwrap().nodes, vec![0, 1, 2]);
         assert!(tree.path(&g, 4).is_none());
     }
+    #[test]
+    fn parallel_groups_and_explicit_zero_directed_penalties() {
+        let original = graph();
+        let mut edges: Vec<_> = original.edges.iter().step_by(2).cloned().collect();
+        let mut parallel = edges[0].clone();
+        parallel.id = "parallel".into();
+        edges.push(parallel);
+        let g = Graph::new(Draft {
+            nodes: original.nodes.clone(),
+            edges,
+        });
+        assert_eq!(g.groups[0], g.groups[1]);
+        assert_eq!(g.groups[0], g.groups[8]);
+        let mut search = Search::new(&g, &prefs(), Budget::new(Duration::from_secs(5)));
+        let mut options = Options {
+            penalties: HashMap::from([(edge_key("0", "1"), 10000.0), ("edge-0".into(), 0.0)]),
+            ..Options::default()
+        };
+        assert_eq!(
+            search.shortest(0, 2, &options).unwrap().unwrap().nodes,
+            vec![0, 1, 2]
+        );
+        assert_eq!(
+            search.shortest(2, 0, &options).unwrap().unwrap().nodes,
+            vec![2, 3, 0]
+        );
+        options.blocked_edges.insert("edge-0".into());
+        assert_eq!(
+            search.shortest(0, 2, &options).unwrap().unwrap().nodes,
+            vec![0, 3, 2]
+        );
+        // Clearing compiled options must restore both parallel edges and penalties.
+        assert_eq!(
+            search
+                .shortest(0, 2, &Options::default())
+                .unwrap()
+                .unwrap()
+                .nodes,
+            vec![0, 1, 2]
+        );
+    }
+
+    #[test]
+    fn indexed_penalties_match_string_options_and_clear() {
+        let g = graph();
+        let mut indexed = Penalties::new(&g);
+        let mut string = Options::default();
+        // Repeated and reverse edges must contribute to the same key, in order.
+        for e in [0, 1, 2, 0] {
+            let value = g.edges[e].distance_m * 0.6;
+            indexed.add(g.groups[e], value);
+            *string.penalties.entry(g.keys[e].clone()).or_default() += value;
+        }
+        let mut search = Search::new(&g, &prefs(), Budget::new(Duration::from_secs(5)));
+        let expected = search.shortest(0, 2, &string).unwrap().unwrap();
+        let actual = search.shortest_indexed(0, 2, &indexed).unwrap().unwrap();
+        assert_eq!(actual.edges, expected.edges);
+        assert_eq!(actual.cost, expected.cost);
+        indexed.clear();
+        let actual = search.shortest_indexed(0, 2, &indexed).unwrap().unwrap();
+        let expected = search.shortest(0, 2, &Options::default()).unwrap().unwrap();
+        assert_eq!(actual.edges, expected.edges);
+        assert_eq!(actual.cost, expected.cost);
+    }
+
+    #[test]
+    fn sparse_resets_match_fresh_searches_and_tree() {
+        let g = graph();
+        let mut reused = Search::new(&g, &prefs(), Budget::new(Duration::from_secs(5)));
+        for (start, end) in [(0, 2), (3, 1), (4, 2), (2, 0), (0, 0), (1, 3)] {
+            let actual = reused.shortest(start, end, &Options::default()).unwrap();
+            let expected = Search::new(&g, &prefs(), Budget::new(Duration::from_secs(5)))
+                .shortest(start, end, &Options::default())
+                .unwrap();
+            assert_eq!(
+                actual.as_ref().map(|p| &p.edges),
+                expected.as_ref().map(|p| &p.edges)
+            );
+            assert_eq!(
+                actual.as_ref().map(|p| p.cost),
+                expected.as_ref().map(|p| p.cost)
+            );
+        }
+        reused.tree(0).unwrap();
+        let isolated = reused.tree(4).unwrap();
+        assert!(isolated.path(&g, 0).is_none());
+        assert_eq!(isolated.discovery, vec![4]);
+    }
+
+    #[test]
+    fn equal_priority_queue_keeps_java_ties() {
+        let mut queue = Queue::default();
+        for n in 0..4 {
+            queue.push((n, 1.0));
+        }
+        let mut result = Vec::new();
+        while let Some((n, _)) = queue.pop() {
+            result.push(n);
+        }
+        assert_eq!(result, vec![0, 3, 2, 1]);
+    }
+
     #[test]
     fn cancellation_deadline_and_alternative_budget() {
         let g = graph();

@@ -1,0 +1,618 @@
+{
+  "date": "2026-09-15",
+  "baselineCommit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+  "candidate": "Uncommitted changes on baseline commit; exact binary and source hashes below.",
+  "platform": "macOS-27.0-arm64-arm-64bit",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "cpu": {
+    "baselineCommit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+    "candidateCommit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+    "candidateDiffSha256": "f81f92a370ecbd680c43f4dcf71e019872b2b512be4da4a7e6d281f31c4bb5ad",
+    "binaries": {
+      "baseline": {
+        "path": "/Users/spencerliang/Documents/Projects-local/RouteCraft/services/routing-compat/results/optimization-baseline/benchmark",
+        "sha256": "cd8eb5a037bfb8bb1aa96854e3641dd473421ba3540d7a70451cdde78731b6af"
+      },
+      "candidate": {
+        "path": "/Users/spencerliang/Documents/Projects-local/RouteCraft/services/routecraft-engine/target/release/benchmark",
+        "sha256": "a31eee96029c69c758ac42afa84b372b539373330c39ab27c84f5c5ce54b4a25"
+      }
+    },
+    "fixtures": {
+      "hilly-cycling-loop-0.reference.json.gz": "6bba37a29ecf5e40538e512a87789c5985005367181cef152bae89ca12d605aa",
+      "hilly-cycling-loop-1.reference.json.gz": "7590cf9ffc2577658ddae4ca2bd7845331f6553873dab7ecec2062359e2f985c",
+      "hilly-cycling-out_and_back-0.reference.json.gz": "b416940e7fbcb06299fc1131e0242cc8b48adc4a4b696365790851e76bc7ac56",
+      "hilly-cycling-out_and_back-1.reference.json.gz": "c702e07369a7bd9aeb58036186440d7cfaf06fb2f6111d63126da38333438275",
+      "hilly-cycling-point_to_point-0.reference.json.gz": "1ee93998d9ab8b2908475cc23a58f54a1d4abddd36b7418206be159cd0868d9c",
+      "hilly-cycling-point_to_point-1.reference.json.gz": "9d62d93a49753151c783c0eb290d6df66760398418bee3e8bba2fcd54bb13233",
+      "hilly-hiking-loop-0.reference.json.gz": "cb2dfa3b760ce2f798cd8932f5e30a17d1c8486a04a520209586c2d41ce0e782",
+      "hilly-hiking-loop-1.reference.json.gz": "5ca3d78001b08dadeee0fdf61ef12bc846ea7ad5cb1f2947b5d052c182f18789",
+      "hilly-hiking-out_and_back-0.reference.json.gz": "fe9615ceaf452151895dba9d8f4e233ac72d36ac7e41f7ebdb1300df3b2a9283",
+      "hilly-hiking-out_and_back-1.reference.json.gz": "12c3e40e3ec2c077b5961fcd3a355004b5db54651458e1d368b4cf5829865926",
+      "hilly-hiking-point_to_point-0.reference.json.gz": "d3132bcd75103cd2329bd2645e22134da697ab4d682ce0b6b1fe31a5c875113a",
+      "hilly-hiking-point_to_point-1.reference.json.gz": "3e4a9a79bd74638cc0cdb0da14c30bbef4c9a1d6bf65537db56ea15a8a400597",
+      "hilly-running-loop-0.reference.json.gz": "07a5d2a882a8a06813b70724269858038c752fd631debb8a5feb967f2bad0e9b",
+      "hilly-running-loop-1.reference.json.gz": "0606c9e4bd2cf6b99313fd1c07352e73d1ddb9b9a76c39f205431b93f29d1d27",
+      "hilly-running-out_and_back-0.reference.json.gz": "a718f84dda12c8e8bee44ba255f06a8f47aa9c3d110f3e57b40cf7d77d378293",
+      "hilly-running-out_and_back-1.reference.json.gz": "abf2ce94a91cbcc11d47fdf31de2e289ee8dbe8e615d051d6c63bd5531b6396a",
+      "hilly-running-point_to_point-0.reference.json.gz": "81523ed771582c5c196a23ab0acee8c84a94472c018af2f2271e1cc2ad5c04de",
+      "hilly-running-point_to_point-1.reference.json.gz": "ee976600fbf2f159c2d58d903242ae3111dc75aea92f42a976acda71d83ee1a5",
+      "hilly.json": "f43ed404ba3768d9e3504de70e9eb6be6f6bdf5107eea7ec4b9a11f2879c9858",
+      "park-cycling-loop-0.reference.json.gz": "b7e7e3db6eebff1df0c100b8fe543be08822e21aea3d15f35913c1a28b8e777f",
+      "park-cycling-loop-1.reference.json.gz": "471c235e18fba72ecd86c1d2d8b735fd36463748421a11965080e6c43469dc35",
+      "park-cycling-out_and_back-0.reference.json.gz": "963edcd88d530121438707dc51472a0a3ef60a637f8e44928f7431cab638e495",
+      "park-cycling-out_and_back-1.reference.json.gz": "d49ab9875c71cfcc2206365d72cf1bfd22331c6d215a9b57ef9ad7ee2e38846d",
+      "park-cycling-point_to_point-0.reference.json.gz": "1e76e386508c28857b3f29784a48877dedbb2e2e03c44fa5dd7118e6c76eeaa0",
+      "park-cycling-point_to_point-1.reference.json.gz": "12f1cf58db908a5ce53110bd6221a59aa1b022c423ee7921542daebcca58da89",
+      "park-hiking-loop-0.reference.json.gz": "03bd0498bacb458f98fe6451c85e19810c1742cac14d8fa099aa65f3f1b23f6b",
+      "park-hiking-loop-1.reference.json.gz": "2390522bbbcb42a61d92ae8179994fa12e4b0946f16ab5467338b96390484022",
+      "park-hiking-out_and_back-0.reference.json.gz": "7672a6a1685561fdc12bcf3a24d4b8c3163036b346134b3fecff68658373c499",
+      "park-hiking-out_and_back-1.reference.json.gz": "7533db658f47b195ad089bf0d9df5f54e35f37a67e373ecca53cdd2e5d86e70e",
+      "park-hiking-point_to_point-0.reference.json.gz": "651795564b5d9303d60c0b1e638a76b3761b3975df9487616bf55ec971511393",
+      "park-hiking-point_to_point-1.reference.json.gz": "0e3d890b128ddb439e76e53e4da0669fda0a6d745899f80693ad0ec83fa6015d",
+      "park-running-loop-0.reference.json.gz": "43972fa5464f2933feca81fac208e59eded216d6f2b680252cef484fc370a889",
+      "park-running-loop-1.reference.json.gz": "d7f7bbc1f4033b5a5f34be7a4ab4f31f958360e4987235b67320f1b5b9ef80e4",
+      "park-running-out_and_back-0.reference.json.gz": "ce792d3ab57c831e83c64cd7cdf0fb86fb83c2dc0691c247b8c62baac14f7b0f",
+      "park-running-out_and_back-1.reference.json.gz": "4935d63b0c020eb6d7ee08a3dccf778a98422389023e8cdfc5edc0075348f6b9",
+      "park-running-point_to_point-0.reference.json.gz": "533ca6f7cc37abbbc79526d54e4fc76cb6151dbe3d6bd33e6f81e5b1dc46f393",
+      "park-running-point_to_point-1.reference.json.gz": "97b6b2c1783332a580a0471aeb30217399a3782b1f3d76293f6c8c701497682e",
+      "park.json": "17ecb1393b49b8ec0ee5a850f2386b6fab245e75bdea3b0b44ce927da1ab2f18",
+      "urban-cycling-loop-0.reference.json.gz": "3baac72b27c03c4eccddd43c03dd35c42a14148cddb9053305baffd7107823f7",
+      "urban-cycling-loop-1.reference.json.gz": "b9d4c5db8079625bf4ddae00f9bffc2201ec8b7c3e89e363362aff2f2b7683d8",
+      "urban-cycling-out_and_back-0.reference.json.gz": "d1412481192301e13e0c59e93fd3f795b4f6fb854c46ada32d631dcb20f1f1d5",
+      "urban-cycling-out_and_back-1.reference.json.gz": "513667e876716266142c0439574f69957de62c557434e1725fea0bca1c588ab2",
+      "urban-cycling-point_to_point-0.reference.json.gz": "0e9833ed6a8fa64ad0765d637f24b7421eff3b420cfdca4621b4704d61d009a4",
+      "urban-cycling-point_to_point-1.reference.json.gz": "191363d8a8ed83b861ab936c3abd911974ddf203eb340a95c2594afb4572ce7f",
+      "urban-hiking-loop-0.reference.json.gz": "d45b78b09fdd58e0817a452aa10f018001a2091ff05adad44040c32e28076053",
+      "urban-hiking-loop-1.reference.json.gz": "20d16fbc98c6c289e4c18c7c7dc9a891f41ce5a1b842ca7592e257a1460c909b",
+      "urban-hiking-out_and_back-0.reference.json.gz": "16fcc1c6feb8ae68faf30e6c269ac1a72592c727d46c979cbe1b36acd8387353",
+      "urban-hiking-out_and_back-1.reference.json.gz": "f41dc75883952c0e4d368b57e0e770d89844b605e4c8c9dfdb1533d69b9eb99a",
+      "urban-hiking-point_to_point-0.reference.json.gz": "05accd22fb81401a81bb1191e23ae9dc42267cb49006ae56d7321f7e618ba85a",
+      "urban-hiking-point_to_point-1.reference.json.gz": "8d3365e7a6b3f76a1d915379d5a0408732cf355fcb02952d205ad1a028923f41",
+      "urban-running-loop-0.reference.json.gz": "fd5d0cee6de773cb50999218a05bc01b084a2be2540a8a1c92730be06b6d8c7e",
+      "urban-running-loop-1.reference.json.gz": "6ad02148e7c653846ad59bcfa02ebe90bfb234c8478a3bbbfb8b470aebc21cf4",
+      "urban-running-out_and_back-0.reference.json.gz": "75034bc0b6f12c708b05262e06d5443961352a4de010293fef2109edc1653e44",
+      "urban-running-out_and_back-1.reference.json.gz": "6f2bf9090a783e053a71c4121460c7ffd70cd452d313a871de69f55f868fd5fa",
+      "urban-running-point_to_point-0.reference.json.gz": "cf7de239bd1bcf17855d566291e9ae7f995facf1837f1ffc130d1bef015cee09",
+      "urban-running-point_to_point-1.reference.json.gz": "95a0ad18524b8e40bb47ced1157268011b11a89798b8994447bacc7705d9fe5d",
+      "urban.json": "5e93c6e3823239cd146580fff9e4a8547773a978b9cc418fe171ee2b0754fe7a"
+    },
+    "inputSha256": "faa275ccbe750c525117e359afd6a54b4ae4641e598051ebffa02f344944e7e8",
+    "platform": "macOS-27.0-arm64-arm-64bit",
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+    "sourceHashes": {
+      "services/routecraft-engine/src/graph.rs": "8c3fbe913d88ebd824ace0ea89b10ed6069f11a17fdd1a936396f59f0e625976",
+      "services/routecraft-engine/src/osm.rs": "0f1f0186dfd5bb09b7388233dedf4b82793aa1e43a7b1c05b887ea1b4ed6b60d",
+      "services/routecraft-engine/src/analysis.rs": "af3a3ee535fdedf4e29f87ce8e23abafb5e28ac7d2748064fefa4c0bc13054e3",
+      "services/routecraft-engine/src/lib.rs": "9f3a82424f34d5259782727e646174f96f73348475241b0b3b87ef7ff908b48f",
+      "services/routecraft-engine/src/geo.rs": "3836618e24b9087bf3fae9f257de22cbc47592441f48a784659b8ff4698f930c",
+      "services/routecraft-engine/src/server.rs": "a680a391e795eb3301a03e4f73d17e1c9abbc8469176f1372b53ef121f501088",
+      "services/routecraft-engine/src/profiling.rs": "e8420678beeb2d39cd3629ef2c0b94e7910d9dcb5becfc153743240fc84ee40b",
+      "services/routecraft-engine/src/compat_sort.rs": "72812f6202c459037f81dec6ea78391762b7dfcea1ed5634a63b2998f50c8b55",
+      "services/routecraft-engine/src/main.rs": "1a7575b6abf88c0a2d70bb67466207246286ac1aa1a2000f3aec9f97e4aec254",
+      "services/routecraft-engine/src/candidates.rs": "d5d2f589e0ff14972ff785ce20be7c8e5a2cef546bafcf2603d84b901abe06ee",
+      "services/routecraft-engine/src/search.rs": "cc60ec5bf6d2f062ce2ed2edb93f33dfddb6ef79bee1a312b3030931fdb5ca77",
+      "services/routecraft-engine/src/loops.rs": "88cbcac01f99afa75b9591ed01000f6812e0a2eaa6178472b6ab10b7fea073ac",
+      "services/routecraft-engine/src/model.rs": "86d02325af8977b2c97c81ca4ad2b914709e22b48dcfd12e3b2af7d5570a9811",
+      "services/routecraft-engine/src/bin/benchmark.rs": "c1b1d8fc529f3ce31d801b2678d3214947033eb89c8eb7c7c7428e4529d10737",
+      "services/routecraft-engine/Cargo.toml": "62a5bd0998f239fb2d94317409a03ca6352ff7b9dbe3570ef17d375c5f432e4f",
+      "services/routecraft-engine/Cargo.lock": "3cc1fca0b60a56cbbde30c753560155a177def75165780d218bcc89f3cb6f1b6",
+      "services/routing-compat/scripts/benchmark.py": "87a097f6bedf3e9455136d32bb35ae83d7f35337ef406e4463a3732590a64094",
+      "services/routing-compat/scripts/seed-smoke.py": "f1a2c3876382037a010a59374dd8463ea85a49f2b17136c8734e5892652a8447",
+      "services/routing-compat/scripts/integration-benchmark.py": "9e09341c18fd0f4483b278beb2cdbc0cc7f03307cc78eeeaa7269ab81a3a9eef",
+      "services/routing-compat/scripts/rust_benchmark.py": "ee9e07fba26df13e889ff519dfec68544bbb6ee45deb4c87bbc04ccabf1cb9f3",
+      "services/routing-compat/scripts/operations-smoke.py": "741d44809170409c2dd0ca9b74818860aaa5c693c90e4e0be250850263033f07",
+      "services/routing-compat/scripts/record-osm.py": "f2381c0b7aeadc235cff6db0d9f47aa1eac9c2e4550e0d4bc97f086921a12045"
+    },
+    "baselineBuild": {
+      "commit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+      "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+      "build": "cargo build --locked --release --bins (default features)",
+      "note": "Original engine with diagnostic counters compiled out; benchmark supports supplied drafts and result comparison. No routing optimizations.",
+      "sourceDiffSha256": "d7771753a6455f3bf4bc617993983b8a0affd64033b17c3d2171eb79892b3afe",
+      "binaries": {
+        "benchmark": "cd8eb5a037bfb8bb1aa96854e3641dd473421ba3540d7a70451cdde78731b6af",
+        "routecraft-engine": "b12de555c3ad8f42fb44ab69b149be102668f499000c9754c5ac2a1e473cdc9d"
+      }
+    },
+    "build": "--locked --release --bins",
+    "rustflags": "",
+    "samples": 20,
+    "warmups": 2,
+    "profiling": false,
+    "equivalentCases": 54,
+    "baseline": {
+      "loop": {
+        "stages": {
+          "prepareMs": 562.711354,
+          "finalizeMs": 86.87573,
+          "generateMs": 1462.7077940000001,
+          "cpuStagesMs": 2111.286795
+        },
+        "p95Ms": 287.357417
+      },
+      "out_and_back": {
+        "stages": {
+          "prepareMs": 562.1157495,
+          "finalizeMs": 86.416,
+          "generateMs": 27.167501,
+          "cpuStagesMs": 675.7897925
+        },
+        "p95Ms": 62.421667
+      },
+      "point_to_point": {
+        "stages": {
+          "prepareMs": 561.9112279999999,
+          "finalizeMs": 91.07620649999998,
+          "generateMs": 113.00508149999999,
+          "cpuStagesMs": 764.8445830000001
+        },
+        "p95Ms": 76.279751
+      },
+      "all": {
+        "stages": {
+          "prepareMs": 1686.7383315000002,
+          "finalizeMs": 264.3679365,
+          "generateMs": 1602.8803764999996,
+          "cpuStagesMs": 3551.9211704999993
+        },
+        "p95Ms": 274.065334
+      }
+    },
+    "candidate": {
+      "loop": {
+        "stages": {
+          "prepareMs": 235.15875000000003,
+          "finalizeMs": 104.05106249999999,
+          "generateMs": 715.0405855,
+          "cpuStagesMs": 1054.516292
+        },
+        "p95Ms": 145.298042
+      },
+      "out_and_back": {
+        "stages": {
+          "prepareMs": 235.116084,
+          "finalizeMs": 104.01985450000002,
+          "generateMs": 26.930916500000002,
+          "cpuStagesMs": 366.18922949999995
+        },
+        "p95Ms": 37.32875
+      },
+      "point_to_point": {
+        "stages": {
+          "prepareMs": 234.28343950000001,
+          "finalizeMs": 108.57020850000004,
+          "generateMs": 69.11566599999999,
+          "cpuStagesMs": 411.9170845
+        },
+        "p95Ms": 46.01375
+      },
+      "all": {
+        "stages": {
+          "prepareMs": 704.5582735000004,
+          "finalizeMs": 316.64112550000004,
+          "generateMs": 811.0871680000001,
+          "cpuStagesMs": 1832.6226060000006
+        },
+        "p95Ms": 135.957583
+      }
+    },
+    "aggregateReductionPct": 48.404750048492076,
+    "routeP95ChangePct": {
+      "loop": -49.43647408968741,
+      "out_and_back": -40.199049794681066,
+      "point_to_point": -39.677634763123436
+    },
+    "gates": {
+      "timingEligible": true,
+      "cpuReductionAtLeast15Pct": true,
+      "routeP95RegressionAtMost5Pct": true
+    }
+  },
+  "stress": {
+    "baselineCommit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+    "candidateCommit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+    "candidateDiffSha256": "f81f92a370ecbd680c43f4dcf71e019872b2b512be4da4a7e6d281f31c4bb5ad",
+    "binaries": {
+      "baseline": {
+        "path": "/Users/spencerliang/Documents/Projects-local/RouteCraft/services/routing-compat/results/optimization-baseline/benchmark",
+        "sha256": "cd8eb5a037bfb8bb1aa96854e3641dd473421ba3540d7a70451cdde78731b6af"
+      },
+      "candidate": {
+        "path": "/Users/spencerliang/Documents/Projects-local/RouteCraft/services/routecraft-engine/target/release/benchmark",
+        "sha256": "a31eee96029c69c758ac42afa84b372b539373330c39ab27c84f5c5ce54b4a25"
+      }
+    },
+    "fixtures": {
+      "hilly-cycling-loop-0.reference.json.gz": "6bba37a29ecf5e40538e512a87789c5985005367181cef152bae89ca12d605aa",
+      "hilly-cycling-loop-1.reference.json.gz": "7590cf9ffc2577658ddae4ca2bd7845331f6553873dab7ecec2062359e2f985c",
+      "hilly-cycling-out_and_back-0.reference.json.gz": "b416940e7fbcb06299fc1131e0242cc8b48adc4a4b696365790851e76bc7ac56",
+      "hilly-cycling-out_and_back-1.reference.json.gz": "c702e07369a7bd9aeb58036186440d7cfaf06fb2f6111d63126da38333438275",
+      "hilly-cycling-point_to_point-0.reference.json.gz": "1ee93998d9ab8b2908475cc23a58f54a1d4abddd36b7418206be159cd0868d9c",
+      "hilly-cycling-point_to_point-1.reference.json.gz": "9d62d93a49753151c783c0eb290d6df66760398418bee3e8bba2fcd54bb13233",
+      "hilly-hiking-loop-0.reference.json.gz": "cb2dfa3b760ce2f798cd8932f5e30a17d1c8486a04a520209586c2d41ce0e782",
+      "hilly-hiking-loop-1.reference.json.gz": "5ca3d78001b08dadeee0fdf61ef12bc846ea7ad5cb1f2947b5d052c182f18789",
+      "hilly-hiking-out_and_back-0.reference.json.gz": "fe9615ceaf452151895dba9d8f4e233ac72d36ac7e41f7ebdb1300df3b2a9283",
+      "hilly-hiking-out_and_back-1.reference.json.gz": "12c3e40e3ec2c077b5961fcd3a355004b5db54651458e1d368b4cf5829865926",
+      "hilly-hiking-point_to_point-0.reference.json.gz": "d3132bcd75103cd2329bd2645e22134da697ab4d682ce0b6b1fe31a5c875113a",
+      "hilly-hiking-point_to_point-1.reference.json.gz": "3e4a9a79bd74638cc0cdb0da14c30bbef4c9a1d6bf65537db56ea15a8a400597",
+      "hilly-running-loop-0.reference.json.gz": "07a5d2a882a8a06813b70724269858038c752fd631debb8a5feb967f2bad0e9b",
+      "hilly-running-loop-1.reference.json.gz": "0606c9e4bd2cf6b99313fd1c07352e73d1ddb9b9a76c39f205431b93f29d1d27",
+      "hilly-running-out_and_back-0.reference.json.gz": "a718f84dda12c8e8bee44ba255f06a8f47aa9c3d110f3e57b40cf7d77d378293",
+      "hilly-running-out_and_back-1.reference.json.gz": "abf2ce94a91cbcc11d47fdf31de2e289ee8dbe8e615d051d6c63bd5531b6396a",
+      "hilly-running-point_to_point-0.reference.json.gz": "81523ed771582c5c196a23ab0acee8c84a94472c018af2f2271e1cc2ad5c04de",
+      "hilly-running-point_to_point-1.reference.json.gz": "ee976600fbf2f159c2d58d903242ae3111dc75aea92f42a976acda71d83ee1a5",
+      "hilly.json": "f43ed404ba3768d9e3504de70e9eb6be6f6bdf5107eea7ec4b9a11f2879c9858",
+      "park-cycling-loop-0.reference.json.gz": "b7e7e3db6eebff1df0c100b8fe543be08822e21aea3d15f35913c1a28b8e777f",
+      "park-cycling-loop-1.reference.json.gz": "471c235e18fba72ecd86c1d2d8b735fd36463748421a11965080e6c43469dc35",
+      "park-cycling-out_and_back-0.reference.json.gz": "963edcd88d530121438707dc51472a0a3ef60a637f8e44928f7431cab638e495",
+      "park-cycling-out_and_back-1.reference.json.gz": "d49ab9875c71cfcc2206365d72cf1bfd22331c6d215a9b57ef9ad7ee2e38846d",
+      "park-cycling-point_to_point-0.reference.json.gz": "1e76e386508c28857b3f29784a48877dedbb2e2e03c44fa5dd7118e6c76eeaa0",
+      "park-cycling-point_to_point-1.reference.json.gz": "12f1cf58db908a5ce53110bd6221a59aa1b022c423ee7921542daebcca58da89",
+      "park-hiking-loop-0.reference.json.gz": "03bd0498bacb458f98fe6451c85e19810c1742cac14d8fa099aa65f3f1b23f6b",
+      "park-hiking-loop-1.reference.json.gz": "2390522bbbcb42a61d92ae8179994fa12e4b0946f16ab5467338b96390484022",
+      "park-hiking-out_and_back-0.reference.json.gz": "7672a6a1685561fdc12bcf3a24d4b8c3163036b346134b3fecff68658373c499",
+      "park-hiking-out_and_back-1.reference.json.gz": "7533db658f47b195ad089bf0d9df5f54e35f37a67e373ecca53cdd2e5d86e70e",
+      "park-hiking-point_to_point-0.reference.json.gz": "651795564b5d9303d60c0b1e638a76b3761b3975df9487616bf55ec971511393",
+      "park-hiking-point_to_point-1.reference.json.gz": "0e3d890b128ddb439e76e53e4da0669fda0a6d745899f80693ad0ec83fa6015d",
+      "park-running-loop-0.reference.json.gz": "43972fa5464f2933feca81fac208e59eded216d6f2b680252cef484fc370a889",
+      "park-running-loop-1.reference.json.gz": "d7f7bbc1f4033b5a5f34be7a4ab4f31f958360e4987235b67320f1b5b9ef80e4",
+      "park-running-out_and_back-0.reference.json.gz": "ce792d3ab57c831e83c64cd7cdf0fb86fb83c2dc0691c247b8c62baac14f7b0f",
+      "park-running-out_and_back-1.reference.json.gz": "4935d63b0c020eb6d7ee08a3dccf778a98422389023e8cdfc5edc0075348f6b9",
+      "park-running-point_to_point-0.reference.json.gz": "533ca6f7cc37abbbc79526d54e4fc76cb6151dbe3d6bd33e6f81e5b1dc46f393",
+      "park-running-point_to_point-1.reference.json.gz": "97b6b2c1783332a580a0471aeb30217399a3782b1f3d76293f6c8c701497682e",
+      "park.json": "17ecb1393b49b8ec0ee5a850f2386b6fab245e75bdea3b0b44ce927da1ab2f18",
+      "urban-cycling-loop-0.reference.json.gz": "3baac72b27c03c4eccddd43c03dd35c42a14148cddb9053305baffd7107823f7",
+      "urban-cycling-loop-1.reference.json.gz": "b9d4c5db8079625bf4ddae00f9bffc2201ec8b7c3e89e363362aff2f2b7683d8",
+      "urban-cycling-out_and_back-0.reference.json.gz": "d1412481192301e13e0c59e93fd3f795b4f6fb854c46ada32d631dcb20f1f1d5",
+      "urban-cycling-out_and_back-1.reference.json.gz": "513667e876716266142c0439574f69957de62c557434e1725fea0bca1c588ab2",
+      "urban-cycling-point_to_point-0.reference.json.gz": "0e9833ed6a8fa64ad0765d637f24b7421eff3b420cfdca4621b4704d61d009a4",
+      "urban-cycling-point_to_point-1.reference.json.gz": "191363d8a8ed83b861ab936c3abd911974ddf203eb340a95c2594afb4572ce7f",
+      "urban-hiking-loop-0.reference.json.gz": "d45b78b09fdd58e0817a452aa10f018001a2091ff05adad44040c32e28076053",
+      "urban-hiking-loop-1.reference.json.gz": "20d16fbc98c6c289e4c18c7c7dc9a891f41ce5a1b842ca7592e257a1460c909b",
+      "urban-hiking-out_and_back-0.reference.json.gz": "16fcc1c6feb8ae68faf30e6c269ac1a72592c727d46c979cbe1b36acd8387353",
+      "urban-hiking-out_and_back-1.reference.json.gz": "f41dc75883952c0e4d368b57e0e770d89844b605e4c8c9dfdb1533d69b9eb99a",
+      "urban-hiking-point_to_point-0.reference.json.gz": "05accd22fb81401a81bb1191e23ae9dc42267cb49006ae56d7321f7e618ba85a",
+      "urban-hiking-point_to_point-1.reference.json.gz": "8d3365e7a6b3f76a1d915379d5a0408732cf355fcb02952d205ad1a028923f41",
+      "urban-running-loop-0.reference.json.gz": "fd5d0cee6de773cb50999218a05bc01b084a2be2540a8a1c92730be06b6d8c7e",
+      "urban-running-loop-1.reference.json.gz": "6ad02148e7c653846ad59bcfa02ebe90bfb234c8478a3bbbfb8b470aebc21cf4",
+      "urban-running-out_and_back-0.reference.json.gz": "75034bc0b6f12c708b05262e06d5443961352a4de010293fef2109edc1653e44",
+      "urban-running-out_and_back-1.reference.json.gz": "6f2bf9090a783e053a71c4121460c7ffd70cd452d313a871de69f55f868fd5fa",
+      "urban-running-point_to_point-0.reference.json.gz": "cf7de239bd1bcf17855d566291e9ae7f995facf1837f1ffc130d1bef015cee09",
+      "urban-running-point_to_point-1.reference.json.gz": "95a0ad18524b8e40bb47ced1157268011b11a89798b8994447bacc7705d9fe5d",
+      "urban.json": "5e93c6e3823239cd146580fff9e4a8547773a978b9cc418fe171ee2b0754fe7a"
+    },
+    "inputSha256": "06149edf581990100d08b2b72b16bfc6949c9f5a8a431b0b8a19324d8cbedd25",
+    "platform": "macOS-27.0-arm64-arm-64bit",
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+    "sourceHashes": {
+      "services/routecraft-engine/src/graph.rs": "8c3fbe913d88ebd824ace0ea89b10ed6069f11a17fdd1a936396f59f0e625976",
+      "services/routecraft-engine/src/osm.rs": "0f1f0186dfd5bb09b7388233dedf4b82793aa1e43a7b1c05b887ea1b4ed6b60d",
+      "services/routecraft-engine/src/analysis.rs": "af3a3ee535fdedf4e29f87ce8e23abafb5e28ac7d2748064fefa4c0bc13054e3",
+      "services/routecraft-engine/src/lib.rs": "9f3a82424f34d5259782727e646174f96f73348475241b0b3b87ef7ff908b48f",
+      "services/routecraft-engine/src/geo.rs": "3836618e24b9087bf3fae9f257de22cbc47592441f48a784659b8ff4698f930c",
+      "services/routecraft-engine/src/server.rs": "a680a391e795eb3301a03e4f73d17e1c9abbc8469176f1372b53ef121f501088",
+      "services/routecraft-engine/src/profiling.rs": "e8420678beeb2d39cd3629ef2c0b94e7910d9dcb5becfc153743240fc84ee40b",
+      "services/routecraft-engine/src/compat_sort.rs": "72812f6202c459037f81dec6ea78391762b7dfcea1ed5634a63b2998f50c8b55",
+      "services/routecraft-engine/src/main.rs": "1a7575b6abf88c0a2d70bb67466207246286ac1aa1a2000f3aec9f97e4aec254",
+      "services/routecraft-engine/src/candidates.rs": "d5d2f589e0ff14972ff785ce20be7c8e5a2cef546bafcf2603d84b901abe06ee",
+      "services/routecraft-engine/src/search.rs": "cc60ec5bf6d2f062ce2ed2edb93f33dfddb6ef79bee1a312b3030931fdb5ca77",
+      "services/routecraft-engine/src/loops.rs": "88cbcac01f99afa75b9591ed01000f6812e0a2eaa6178472b6ab10b7fea073ac",
+      "services/routecraft-engine/src/model.rs": "86d02325af8977b2c97c81ca4ad2b914709e22b48dcfd12e3b2af7d5570a9811",
+      "services/routecraft-engine/src/bin/benchmark.rs": "c1b1d8fc529f3ce31d801b2678d3214947033eb89c8eb7c7c7428e4529d10737",
+      "services/routecraft-engine/Cargo.toml": "62a5bd0998f239fb2d94317409a03ca6352ff7b9dbe3570ef17d375c5f432e4f",
+      "services/routecraft-engine/Cargo.lock": "3cc1fca0b60a56cbbde30c753560155a177def75165780d218bcc89f3cb6f1b6",
+      "services/routing-compat/scripts/benchmark.py": "87a097f6bedf3e9455136d32bb35ae83d7f35337ef406e4463a3732590a64094",
+      "services/routing-compat/scripts/seed-smoke.py": "f1a2c3876382037a010a59374dd8463ea85a49f2b17136c8734e5892652a8447",
+      "services/routing-compat/scripts/integration-benchmark.py": "9e09341c18fd0f4483b278beb2cdbc0cc7f03307cc78eeeaa7269ab81a3a9eef",
+      "services/routing-compat/scripts/rust_benchmark.py": "ee9e07fba26df13e889ff519dfec68544bbb6ee45deb4c87bbc04ccabf1cb9f3",
+      "services/routing-compat/scripts/operations-smoke.py": "741d44809170409c2dd0ca9b74818860aaa5c693c90e4e0be250850263033f07",
+      "services/routing-compat/scripts/record-osm.py": "f2381c0b7aeadc235cff6db0d9f47aa1eac9c2e4550e0d4bc97f086921a12045"
+    },
+    "baselineBuild": {
+      "commit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+      "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+      "build": "cargo build --locked --release --bins (default features)",
+      "note": "Original engine with diagnostic counters compiled out; benchmark supports supplied drafts and result comparison. No routing optimizations.",
+      "sourceDiffSha256": "d7771753a6455f3bf4bc617993983b8a0affd64033b17c3d2171eb79892b3afe",
+      "binaries": {
+        "benchmark": "cd8eb5a037bfb8bb1aa96854e3641dd473421ba3540d7a70451cdde78731b6af",
+        "routecraft-engine": "b12de555c3ad8f42fb44ab69b149be102668f499000c9754c5ac2a1e473cdc9d"
+      }
+    },
+    "build": "--locked --release --bins",
+    "rustflags": "",
+    "samples": 20,
+    "warmups": 2,
+    "profiling": false,
+    "equivalentCases": 12,
+    "baseline": {
+      "loop": {
+        "stages": {
+          "prepareMs": 15.757666999999998,
+          "finalizeMs": 40.814396,
+          "generateMs": 211.77279149999998,
+          "cpuStagesMs": 268.12093749999997
+        },
+        "p95Ms": 188.966667
+      },
+      "out_and_back": {
+        "stages": {
+          "prepareMs": 15.6428545,
+          "finalizeMs": 40.59583299999999,
+          "generateMs": 5.862666,
+          "cpuStagesMs": 62.04625
+        },
+        "p95Ms": 33.500417
+      },
+      "point_to_point": {
+        "stages": {
+          "prepareMs": 15.6775625,
+          "finalizeMs": 40.760396,
+          "generateMs": 22.905936999999998,
+          "cpuStagesMs": 79.04991799999999
+        },
+        "p95Ms": 45.711167
+      },
+      "all": {
+        "stages": {
+          "prepareMs": 47.078084,
+          "finalizeMs": 122.170625,
+          "generateMs": 240.5413945,
+          "cpuStagesMs": 409.21710549999995
+        },
+        "p95Ms": 152.328625
+      }
+    },
+    "candidate": {
+      "loop": {
+        "stages": {
+          "prepareMs": 8.046582999999998,
+          "finalizeMs": 50.272916,
+          "generateMs": 72.8177095,
+          "cpuStagesMs": 131.506188
+        },
+        "p95Ms": 73.0265
+      },
+      "out_and_back": {
+        "stages": {
+          "prepareMs": 8.1469165,
+          "finalizeMs": 49.453188,
+          "generateMs": 5.448084000000001,
+          "cpuStagesMs": 63.2402515
+        },
+        "p95Ms": 33.901458
+      },
+      "point_to_point": {
+        "stages": {
+          "prepareMs": 7.9637715,
+          "finalizeMs": 49.5501035,
+          "generateMs": 9.556875000000002,
+          "cpuStagesMs": 67.1445415
+        },
+        "p95Ms": 35.852125
+      },
+      "all": {
+        "stages": {
+          "prepareMs": 24.157271,
+          "finalizeMs": 149.27620750000003,
+          "generateMs": 87.82266849999999,
+          "cpuStagesMs": 261.890981
+        },
+        "p95Ms": 69.925792
+      }
+    },
+    "aggregateReductionPct": 36.001946771015405,
+    "routeP95ChangePct": {
+      "loop": -61.35482455220529,
+      "out_and_back": 1.1971224119389223,
+      "point_to_point": -21.56812579298184
+    },
+    "gates": {
+      "timingEligible": true,
+      "cpuReductionAtLeast15Pct": true,
+      "routeP95RegressionAtMost5Pct": true
+    }
+  },
+  "http": {
+    "fixtures": {
+      "hilly-cycling-loop-0.reference.json.gz": "6bba37a29ecf5e40538e512a87789c5985005367181cef152bae89ca12d605aa",
+      "hilly-cycling-loop-1.reference.json.gz": "7590cf9ffc2577658ddae4ca2bd7845331f6553873dab7ecec2062359e2f985c",
+      "hilly-cycling-out_and_back-0.reference.json.gz": "b416940e7fbcb06299fc1131e0242cc8b48adc4a4b696365790851e76bc7ac56",
+      "hilly-cycling-out_and_back-1.reference.json.gz": "c702e07369a7bd9aeb58036186440d7cfaf06fb2f6111d63126da38333438275",
+      "hilly-cycling-point_to_point-0.reference.json.gz": "1ee93998d9ab8b2908475cc23a58f54a1d4abddd36b7418206be159cd0868d9c",
+      "hilly-cycling-point_to_point-1.reference.json.gz": "9d62d93a49753151c783c0eb290d6df66760398418bee3e8bba2fcd54bb13233",
+      "hilly-hiking-loop-0.reference.json.gz": "cb2dfa3b760ce2f798cd8932f5e30a17d1c8486a04a520209586c2d41ce0e782",
+      "hilly-hiking-loop-1.reference.json.gz": "5ca3d78001b08dadeee0fdf61ef12bc846ea7ad5cb1f2947b5d052c182f18789",
+      "hilly-hiking-out_and_back-0.reference.json.gz": "fe9615ceaf452151895dba9d8f4e233ac72d36ac7e41f7ebdb1300df3b2a9283",
+      "hilly-hiking-out_and_back-1.reference.json.gz": "12c3e40e3ec2c077b5961fcd3a355004b5db54651458e1d368b4cf5829865926",
+      "hilly-hiking-point_to_point-0.reference.json.gz": "d3132bcd75103cd2329bd2645e22134da697ab4d682ce0b6b1fe31a5c875113a",
+      "hilly-hiking-point_to_point-1.reference.json.gz": "3e4a9a79bd74638cc0cdb0da14c30bbef4c9a1d6bf65537db56ea15a8a400597",
+      "hilly-running-loop-0.reference.json.gz": "07a5d2a882a8a06813b70724269858038c752fd631debb8a5feb967f2bad0e9b",
+      "hilly-running-loop-1.reference.json.gz": "0606c9e4bd2cf6b99313fd1c07352e73d1ddb9b9a76c39f205431b93f29d1d27",
+      "hilly-running-out_and_back-0.reference.json.gz": "a718f84dda12c8e8bee44ba255f06a8f47aa9c3d110f3e57b40cf7d77d378293",
+      "hilly-running-out_and_back-1.reference.json.gz": "abf2ce94a91cbcc11d47fdf31de2e289ee8dbe8e615d051d6c63bd5531b6396a",
+      "hilly-running-point_to_point-0.reference.json.gz": "81523ed771582c5c196a23ab0acee8c84a94472c018af2f2271e1cc2ad5c04de",
+      "hilly-running-point_to_point-1.reference.json.gz": "ee976600fbf2f159c2d58d903242ae3111dc75aea92f42a976acda71d83ee1a5",
+      "hilly.json": "f43ed404ba3768d9e3504de70e9eb6be6f6bdf5107eea7ec4b9a11f2879c9858",
+      "park-cycling-loop-0.reference.json.gz": "b7e7e3db6eebff1df0c100b8fe543be08822e21aea3d15f35913c1a28b8e777f",
+      "park-cycling-loop-1.reference.json.gz": "471c235e18fba72ecd86c1d2d8b735fd36463748421a11965080e6c43469dc35",
+      "park-cycling-out_and_back-0.reference.json.gz": "963edcd88d530121438707dc51472a0a3ef60a637f8e44928f7431cab638e495",
+      "park-cycling-out_and_back-1.reference.json.gz": "d49ab9875c71cfcc2206365d72cf1bfd22331c6d215a9b57ef9ad7ee2e38846d",
+      "park-cycling-point_to_point-0.reference.json.gz": "1e76e386508c28857b3f29784a48877dedbb2e2e03c44fa5dd7118e6c76eeaa0",
+      "park-cycling-point_to_point-1.reference.json.gz": "12f1cf58db908a5ce53110bd6221a59aa1b022c423ee7921542daebcca58da89",
+      "park-hiking-loop-0.reference.json.gz": "03bd0498bacb458f98fe6451c85e19810c1742cac14d8fa099aa65f3f1b23f6b",
+      "park-hiking-loop-1.reference.json.gz": "2390522bbbcb42a61d92ae8179994fa12e4b0946f16ab5467338b96390484022",
+      "park-hiking-out_and_back-0.reference.json.gz": "7672a6a1685561fdc12bcf3a24d4b8c3163036b346134b3fecff68658373c499",
+      "park-hiking-out_and_back-1.reference.json.gz": "7533db658f47b195ad089bf0d9df5f54e35f37a67e373ecca53cdd2e5d86e70e",
+      "park-hiking-point_to_point-0.reference.json.gz": "651795564b5d9303d60c0b1e638a76b3761b3975df9487616bf55ec971511393",
+      "park-hiking-point_to_point-1.reference.json.gz": "0e3d890b128ddb439e76e53e4da0669fda0a6d745899f80693ad0ec83fa6015d",
+      "park-running-loop-0.reference.json.gz": "43972fa5464f2933feca81fac208e59eded216d6f2b680252cef484fc370a889",
+      "park-running-loop-1.reference.json.gz": "d7f7bbc1f4033b5a5f34be7a4ab4f31f958360e4987235b67320f1b5b9ef80e4",
+      "park-running-out_and_back-0.reference.json.gz": "ce792d3ab57c831e83c64cd7cdf0fb86fb83c2dc0691c247b8c62baac14f7b0f",
+      "park-running-out_and_back-1.reference.json.gz": "4935d63b0c020eb6d7ee08a3dccf778a98422389023e8cdfc5edc0075348f6b9",
+      "park-running-point_to_point-0.reference.json.gz": "533ca6f7cc37abbbc79526d54e4fc76cb6151dbe3d6bd33e6f81e5b1dc46f393",
+      "park-running-point_to_point-1.reference.json.gz": "97b6b2c1783332a580a0471aeb30217399a3782b1f3d76293f6c8c701497682e",
+      "park.json": "17ecb1393b49b8ec0ee5a850f2386b6fab245e75bdea3b0b44ce927da1ab2f18",
+      "urban-cycling-loop-0.reference.json.gz": "3baac72b27c03c4eccddd43c03dd35c42a14148cddb9053305baffd7107823f7",
+      "urban-cycling-loop-1.reference.json.gz": "b9d4c5db8079625bf4ddae00f9bffc2201ec8b7c3e89e363362aff2f2b7683d8",
+      "urban-cycling-out_and_back-0.reference.json.gz": "d1412481192301e13e0c59e93fd3f795b4f6fb854c46ada32d631dcb20f1f1d5",
+      "urban-cycling-out_and_back-1.reference.json.gz": "513667e876716266142c0439574f69957de62c557434e1725fea0bca1c588ab2",
+      "urban-cycling-point_to_point-0.reference.json.gz": "0e9833ed6a8fa64ad0765d637f24b7421eff3b420cfdca4621b4704d61d009a4",
+      "urban-cycling-point_to_point-1.reference.json.gz": "191363d8a8ed83b861ab936c3abd911974ddf203eb340a95c2594afb4572ce7f",
+      "urban-hiking-loop-0.reference.json.gz": "d45b78b09fdd58e0817a452aa10f018001a2091ff05adad44040c32e28076053",
+      "urban-hiking-loop-1.reference.json.gz": "20d16fbc98c6c289e4c18c7c7dc9a891f41ce5a1b842ca7592e257a1460c909b",
+      "urban-hiking-out_and_back-0.reference.json.gz": "16fcc1c6feb8ae68faf30e6c269ac1a72592c727d46c979cbe1b36acd8387353",
+      "urban-hiking-out_and_back-1.reference.json.gz": "f41dc75883952c0e4d368b57e0e770d89844b605e4c8c9dfdb1533d69b9eb99a",
+      "urban-hiking-point_to_point-0.reference.json.gz": "05accd22fb81401a81bb1191e23ae9dc42267cb49006ae56d7321f7e618ba85a",
+      "urban-hiking-point_to_point-1.reference.json.gz": "8d3365e7a6b3f76a1d915379d5a0408732cf355fcb02952d205ad1a028923f41",
+      "urban-running-loop-0.reference.json.gz": "fd5d0cee6de773cb50999218a05bc01b084a2be2540a8a1c92730be06b6d8c7e",
+      "urban-running-loop-1.reference.json.gz": "6ad02148e7c653846ad59bcfa02ebe90bfb234c8478a3bbbfb8b470aebc21cf4",
+      "urban-running-out_and_back-0.reference.json.gz": "75034bc0b6f12c708b05262e06d5443961352a4de010293fef2109edc1653e44",
+      "urban-running-out_and_back-1.reference.json.gz": "6f2bf9090a783e053a71c4121460c7ffd70cd452d313a871de69f55f868fd5fa",
+      "urban-running-point_to_point-0.reference.json.gz": "cf7de239bd1bcf17855d566291e9ae7f995facf1837f1ffc130d1bef015cee09",
+      "urban-running-point_to_point-1.reference.json.gz": "95a0ad18524b8e40bb47ced1157268011b11a89798b8994447bacc7705d9fe5d",
+      "urban.json": "5e93c6e3823239cd146580fff9e4a8547773a978b9cc418fe171ee2b0754fe7a"
+    },
+    "jvmFlags": "-Xms128m -Xmx512m",
+    "samplesPerFixture": 20,
+    "warmupsPerFixture": 3,
+    "memoryScope": "Spring test JVM plus Rust service RSS, sampled at 100 ms; excludes Maven coordinator and PostGIS. Includes identical test/Mockito fixture overhead in both JVMs.",
+    "coldScope": "First public routing request in each fresh Spring process; subsequent fixture first encounters are not process-cold.",
+    "providers": "Fixed OSM and node/route elevation values; real cache, HTTP, serialization, PostGIS writes",
+    "baselineCommit": "a9ead32",
+    "candidateCommit": "a9ead32c6247237ed259f98ec45007eb13c8b323",
+    "binaries": {
+      "baseline": {
+        "path": "/Users/spencerliang/Documents/Projects-local/RouteCraft/services/routing-compat/results/optimization-baseline/routecraft-engine",
+        "sha256": "b12de555c3ad8f42fb44ab69b149be102668f499000c9754c5ac2a1e473cdc9d"
+      },
+      "candidate": {
+        "path": "/Users/spencerliang/Documents/Projects-local/RouteCraft/services/routecraft-engine/target/release/routecraft-engine",
+        "sha256": "de364174590684b6d1739706138129707b6878b791479cdccd72771977c274bf"
+      }
+    },
+    "baseline": {
+      "javaFallbacks": 0,
+      "firstProcessRequest": {
+        "status": 200,
+        "routeType": "loop",
+        "elapsedMs": 325.232834,
+        "fixture": "urban-running-loop-0"
+      },
+      "medianMs": 78.1375,
+      "p95Ms": 314.91375,
+      "throughputPerSec": 10.847585464599112,
+      "combinedPeakRssKiB": 862464,
+      "memorySamples": 1105,
+      "elapsedSeconds": 123.682927292,
+      "routeTypes": {
+        "loop": {
+          "medianMs": 109.377771,
+          "p95Ms": 353.889375
+        },
+        "out_and_back": {
+          "medianMs": 60.603875,
+          "p95Ms": 100.39675
+        },
+        "point_to_point": {
+          "medianMs": 69.187979,
+          "p95Ms": 109.857292
+        }
+      }
+    },
+    "candidate": {
+      "javaFallbacks": 0,
+      "firstProcessRequest": {
+        "status": 200,
+        "routeType": "loop",
+        "elapsedMs": 299.42825,
+        "fixture": "urban-running-loop-0"
+      },
+      "medianMs": 46.8085835,
+      "p95Ms": 163.881417,
+      "throughputPerSec": 17.983431950763954,
+      "combinedPeakRssKiB": 868208,
+      "memorySamples": 706,
+      "elapsedSeconds": 79.78132687499999,
+      "routeTypes": {
+        "loop": {
+          "medianMs": 66.7639585,
+          "p95Ms": 176.061792
+        },
+        "out_and_back": {
+          "medianMs": 42.4241875,
+          "p95Ms": 69.663417
+        },
+        "point_to_point": {
+          "medianMs": 45.576312,
+          "p95Ms": 75.029125
+        }
+      }
+    },
+    "combinedMemoryIncreasePct": 0.6659988127040606,
+    "routeP95ChangePct": {
+      "loop": -50.249483472059595,
+      "out_and_back": -30.611880364653242,
+      "point_to_point": -31.703099872514617
+    },
+    "gates": {
+      "timingEligible": true,
+      "routeP95RegressionAtMost5Pct": true,
+      "combinedMemoryIncreaseAtMost10Pct": true
+    }
+  },
+  "verification": {
+    "rustUnitTests": 13,
+    "javaTestsPassed": 29,
+    "recordedCompatibilityCases": 54,
+    "stressCompatibilityCases": 12,
+    "dockerHttpPostgisMatrixCases": 54,
+    "frontendApiClientSmoke": true,
+    "restartInvalidation": true,
+    "javaFallbackSmoke": true,
+    "formatCheck": true,
+    "strictClippyAllFeatures": true,
+    "profilingEquivalenceCases": 54,
+    "testDatabaseRemoved": true,
+    "testServicesStopped": true
+  },
+  "rawSamples": {
+    "results/optimization-final/baseline.json": {
+      "sha256": "c4ef8b9a734b684aec9003b5b070aa0569dbcd52a722c6453d8c29323e6004b2",
+      "rows": 1080
+    },
+    "results/optimization-final/candidate.json": {
+      "sha256": "b14c642b001ed3b355cbaf30090b393872fdf489b6de9b6874521e8724786584",
+      "rows": 1080
+    },
+    "results/optimization-stress/baseline.json": {
+      "sha256": "37b267be0d72d33175f8739e718167dda8addd10f9ae4549ff113ce9875141d2",
+      "rows": 240
+    },
+    "results/optimization-stress/candidate.json": {
+      "sha256": "40758238318306d1e69347b3c6d0f2015e4d4a8868e57d38d9e512ceec102de3",
+      "rows": 240
+    },
+    "results/optimization-http/baseline-integration.json": {
+      "sha256": "7beb10af1c61bc59f6cfde1b801c56928fec8c7e05d7eccbdc8ecdcca729c52a",
+      "rows": 1080
+    },
+    "results/optimization-http/candidate-integration.json": {
+      "sha256": "e84bd4cb320ec57386c2bbabf184e475b17081e59787b8782e49d53a6d64e132",
+      "rows": 1080
+    }
+  },
+  "diagnosticExample": {
+    "fixture": "hilly-running-loop-1",
+    "counters": {
+      "green_feature_distances": 39883,
+      "path_reconstructions": 325,
+      "queue_pops": 1271427,
+      "relaxed_edges": 3026497,
+      "search_calls": 349,
+      "touched_nodes": 1067634
+    },
+    "timingsExcludedFromAcceptance": true
+  }
+}
