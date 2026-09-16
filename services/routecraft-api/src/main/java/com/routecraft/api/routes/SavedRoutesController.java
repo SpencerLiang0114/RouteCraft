@@ -33,6 +33,19 @@ class SavedRoutesController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/{id}/export.gpx")
+    ResponseEntity<String> exportGpx(@PathVariable String id) {
+        return savedRouteRepository.findById(id)
+                .map(payload -> {
+                    String gpx = GpxExporter.toGpx(payload);
+                    return ResponseEntity.ok()
+                            .header("Content-Type", "application/gpx+xml")
+                            .header("Content-Disposition", "attachment; filename=\"" + id + ".gpx\"")
+                            .body(gpx);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     JsonNode saveRoute(@RequestBody JsonNode route) {
         return savedRouteRepository.upsert(route);
