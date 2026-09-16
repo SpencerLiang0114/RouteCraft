@@ -106,3 +106,9 @@ CPU measurements exclude JSON exchange and external providers; their throughput 
 The integration driver runs fresh Spring JVMs sequentially for Java and Rust, starts the native Rust HTTP service only for Rust mode, and uses real Spring HTTP, raw caches, serialization, final profile computation and PostGIS writes. External OSM/elevation values are fixed. Each fixture has three warmup requests and 20 measured requests. JVM heap flags are identical (`-Xms128m -Xmx512m`). Combined RSS is sampled every 100 ms for the Spring test JVM plus Rust; it excludes Maven and PostGIS, and includes the same test/Mockito overhead in each JVM. This is an integration estimate, not a production capacity/load test. The first public routing request in each fresh Spring process is reported separately as cold; later first encounters have a warmed JVM.
 
 Raw samples, stage logs and machine-readable summaries go to ignored `results/`. See [BENCHMARKS.md](BENCHMARKS.md) for the recorded run, gate decisions and limitations. Rust was enabled only after the recorded gates passed. Adoption requires compatibility, ≥25% aggregate CPU reduction, every route type's warm end-to-end p95 regression ≤5%, and combined peak memory increase ≤10%. A failed or unverified gate keeps Java as default.
+
+## Further Rust optimization
+
+See [exact-route optimization](OPTIMIZATION.md) for the current-Rust comparison,
+implementation details, reproducible CPU/stress/HTTP commands, profiling counters,
+and rollback artifacts. The original Java migration evidence above is unchanged.

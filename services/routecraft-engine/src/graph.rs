@@ -10,6 +10,9 @@ pub struct Graph {
     pub to: Vec<usize>,
     pub from: Vec<usize>,
     pub keys: Vec<String>,
+    pub groups: Vec<usize>,
+    pub group_count: usize,
+    pub option_edges: HashMap<String, Vec<usize>>,
     tree: Option<Box<KdNode>>,
     pub iteration: Vec<usize>,
 }
@@ -115,7 +118,19 @@ impl Graph {
             .collect();
         let from: Vec<_> = edges.iter().map(|e| indices[&e.from]).collect();
         let to: Vec<_> = edges.iter().map(|e| indices[&e.to]).collect();
-        let keys = edges.iter().map(Edge::key).collect();
+        let keys: Vec<_> = edges.iter().map(Edge::key).collect();
+        let mut groups_by_key = HashMap::new();
+        let mut option_edges: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut groups = Vec::with_capacity(edges.len());
+        for (i, e) in edges.iter().enumerate() {
+            let next = groups_by_key.len();
+            groups.push(*groups_by_key.entry(keys[i].as_str()).or_insert(next));
+            option_edges.entry(e.id.clone()).or_default().push(i);
+            if e.id != keys[i] {
+                option_edges.entry(keys[i].clone()).or_default().push(i);
+            }
+        }
+        let group_count = groups_by_key.len();
         let mut offsets = vec![0; nodes.len() + 1];
         for &i in &from {
             offsets[i + 1] += 1;
@@ -141,6 +156,9 @@ impl Graph {
             to,
             from,
             keys,
+            groups,
+            group_count,
+            option_edges,
             tree,
             iteration,
         }

@@ -4,9 +4,12 @@ use crate::{
     geo::*,
     graph::Graph,
     model::*,
-    search::{EngineError, Options, Path, Search},
+    search::{EngineError, Options, Path, Penalties, Search},
 };
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 struct Shape {
     overlap: f64,
     compactness: f64,
@@ -121,10 +124,10 @@ fn shape(g: &Graph, path: &Path, origin: Point, ratios: &[f64], p: &Preferences)
         score,
     }
 }
-fn corridor(g: &Graph, path: &Path) -> HashMap<String, f64> {
+fn corridor(g: &Graph, path: &Path) -> Vec<(usize, f64)> {
     let mut result = HashMap::new();
     if path.geometry.len() < 2 {
-        return result;
+        return Vec::new();
     }
     let end = path
         .geometry
@@ -144,11 +147,11 @@ fn corridor(g: &Graph, path: &Path) -> HashMap<String, f64> {
             .any(|w| segment_distance_km(point, w[0], w[1]) * 1000.0 < 45.0)
         {
             for &e in g.adjacent(n) {
-                *result.entry(g.keys[e].clone()).or_insert(0.0) += 15.0 * g.edges[e].distance_m;
+                *result.entry(g.groups[e]).or_insert(0.0) += 15.0 * g.edges[e].distance_m;
             }
         }
     }
-    result
+    result.into_iter().collect()
 }
 fn enough(g: &Graph, built: &[(Generated, Shape)], p: &Preferences) -> bool {
     let t = target(p);
@@ -157,7 +160,7 @@ fn enough(g: &Graph, built: &[(Generated, Shape)], p: &Preferences) -> bool {
         .filter(|(c, s)| {
             s.overlap <= 0.05 && (c.candidate.distance_km - t).abs() / t <= tolerance(t)
         })
-        .map(|(c, _)| c.clone())
+        .map(|(c, _)| c)
         .collect();
     if matches.len() < 8 {
         return false;
@@ -175,7 +178,9 @@ pub fn generate(
     let mut tier = sets.first().map(|s| s.tier).unwrap_or(0);
     let mut built = Vec::new();
     let mut first_cache: HashMap<usize, Option<Path>> = HashMap::new();
-    let mut corridor_cache: HashMap<usize, HashMap<String, f64>> = HashMap::new();
+    let mut corridor_cache: HashMap<usize, Vec<(usize, f64)>> = HashMap::new();
+    let mut penalties = Penalties::new(g);
+    let mut combined = Penalties::new(g);
     for (index, set) in sets.into_iter().enumerate() {
         search.budget.check()?;
         if set.tier > tier {
@@ -187,40 +192,35 @@ pub fn generate(
         let mut nodes = vec![start];
         nodes.extend(&set.nodes);
         nodes.push(start);
-        let mut segments = Vec::new();
+        if let std::collections::hash_map::Entry::Vacant(e) = first_cache.entry(nodes[1]) {
+            e.insert(search.shortest(start, nodes[1], &Options::default())?);
+        }
+        let Some(first) = first_cache[&nodes[1]].as_ref() else {
+            continue;
+        };
+        let mut segments: Vec<Cow<'_, Path>> = Vec::new();
         let mut ratios = Vec::new();
-        let mut penalties: HashMap<String, f64> = HashMap::new();
+        penalties.clear();
         let mut failed = false;
         for step in 0..nodes.len() - 1 {
             let segment = if step == 0 {
-                if let std::collections::hash_map::Entry::Vacant(e) = first_cache.entry(nodes[1]) {
-                    let path = search.shortest(start, nodes[1], &Options::default())?;
-                    e.insert(path);
-                }
-                first_cache[&nodes[1]].clone()
+                Some(Cow::Borrowed(first))
             } else {
                 let opts = if step == nodes.len() - 2 {
                     let corridor = corridor_cache
                         .entry(nodes[1])
-                        .or_insert_with(|| corridor(g, &segments[0]));
-                    let mut combined: HashMap<_, _> = penalties
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v * 2.0))
-                        .collect();
-                    for (k, v) in corridor {
-                        *combined.entry(k.clone()).or_insert(0.0) += *v;
+                        .or_insert_with(|| corridor(g, first));
+                    combined.scaled_from(&penalties, 2.0);
+                    for &(group, value) in corridor.iter() {
+                        combined.add(group, value);
                     }
-                    Options {
-                        penalties: combined,
-                        ..Options::default()
-                    }
+                    &combined
                 } else {
-                    Options {
-                        penalties: penalties.clone(),
-                        ..Options::default()
-                    }
+                    &penalties
                 };
-                search.shortest(nodes[step], nodes[step + 1], &opts)?
+                search
+                    .shortest_indexed(nodes[step], nodes[step + 1], opts)?
+                    .map(Cow::Owned)
             };
             let Some(segment) = segment else {
                 failed = true;
@@ -239,7 +239,7 @@ pub fn generate(
             }
             ratios.push(ratio);
             for &e in &segments.last().unwrap().edges {
-                *penalties.entry(g.keys[e].clone()).or_insert(0.0) += 5.0 * g.edges[e].distance_m;
+                penalties.add(g.groups[e], 5.0 * g.edges[e].distance_m);
             }
         }
         if failed {

@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Serial native CPU-stage comparison; run after builds/tests, on an idle machine."""
 import argparse, gzip, json, pathlib, platform, statistics, subprocess, threading, time
+import sys
+if "--baseline" in sys.argv:
+    from rust_benchmark import main
+    main()
+    raise SystemExit
+
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / "services/routing-compat/fixtures"
 OUT = ROOT / "services/routing-compat/results"

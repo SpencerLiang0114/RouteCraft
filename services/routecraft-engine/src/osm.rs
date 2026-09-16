@@ -108,6 +108,7 @@ fn inside(p: Point, g: &[Point]) -> bool {
     yes
 }
 fn feature_distance(p: Point, f: &Feature) -> f64 {
+    crate::count!(green_feature_distances);
     let g = &f.geometry;
     if g.len() > 3 && distance(g[0], g[g.len() - 1]) < 8.0 && inside(p, g) {
         return 0.0;
@@ -150,8 +151,20 @@ fn green_scores(p: Point, tree: &RTree<Feature>, indexed: bool) -> [f64; 3] {
     } else {
         tree.iter().collect()
     };
-    let mut hits: Vec<_> = fs.iter().map(|f| (*f, feature_distance(p, f))).collect();
-    hits.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.order.cmp(&b.0.order)));
+    let mut hits: Vec<(&Feature, f64)> = Vec::with_capacity(6);
+    for f in fs {
+        let d = feature_distance(p, f);
+        let at = hits.partition_point(|(other, distance)| {
+            distance
+                .total_cmp(&d)
+                .then(other.order.cmp(&f.order))
+                .is_lt()
+        });
+        if at < 5 {
+            hits.insert(at, (f, d));
+            hits.truncate(5);
+        }
+    }
     let mut scores = [0.0_f64; 3];
     for (f, d) in hits.iter().take(5) {
         let v = (1.0 - d / 300.0).clamp(0.0, 1.0);
@@ -234,6 +247,67 @@ pub fn create_edges_with_budget(
         let g = way.geometry.as_ref().unwrap();
         let t = way.tags.as_ref().unwrap();
         let h = tag(t, "highway");
+        let exposure = traffic(h);
+        let surface = t.get("surface").cloned().unwrap_or_else(|| {
+            if matches!(h, "path" | "track") {
+                "dirt"
+            } else {
+                "paved"
+            }
+            .into()
+        });
+        let road = if h == "cycleway" {
+            "bike_path"
+        } else if matches!(h, "path" | "footway" | "pedestrian") {
+            if matches!(tag(t, "surface"), "dirt" | "ground") {
+                "trail"
+            } else {
+                "park_path"
+            }
+        } else {
+            h
+        };
+        let sidewalk = t.contains_key("sidewalk") && tag(t, "sidewalk") != "no";
+        let speed = tag(t, "maxspeed")
+            .chars()
+            .filter(char::is_ascii_digit)
+            .collect::<String>()
+            .parse::<i32>()
+            .map(|n| ((n as f64 - 25.0) / 120.0).clamp(0.0, 0.2))
+            .unwrap_or(0.0);
+        let safety = (0.86 - exposure * 0.5
+            + if sidewalk { 0.14 } else { 0.0 }
+            + if tag(t, "lit") == "yes" { 0.06 } else { 0.0 }
+            + if path(h) { 0.16 } else { 0.0 }
+            - speed)
+            .clamp(0.05, 0.98);
+        let bike = if h == "cycleway" || tag(t, "bicycle") == "designated" {
+            0.96
+        } else if ["cycleway", "cycleway:left", "cycleway:right"]
+            .iter()
+            .any(|k| t.contains_key(*k))
+        {
+            0.82
+        } else if matches!(h, "residential" | "living_street") {
+            0.68
+        } else if h == "path" && tag(t, "bicycle") != "no" {
+            0.62
+        } else if matches!(h, "primary" | "secondary") {
+            0.34
+        } else {
+            0.52
+        };
+        let walk = if matches!(h, "footway" | "pedestrian") || tag(t, "foot") == "designated" {
+            0.96
+        } else if matches!(h, "path" | "track") {
+            0.9
+        } else if sidewalk {
+            0.78
+        } else if matches!(h, "residential" | "living_street") {
+            0.7
+        } else {
+            0.44
+        };
         let mut start = 0;
         let mut length = 0.0;
         for i in 1..g.len() {
@@ -282,26 +356,6 @@ pub fn create_edges_with_budget(
             let scenery =
                 (0.28 + green[2] * 0.58 + if t.contains_key("name") { 0.08 } else { 0.0 })
                     .clamp(0.0, 0.98);
-            let exposure = traffic(h);
-            let surface = t.get("surface").cloned().unwrap_or_else(|| {
-                if matches!(h, "path" | "track") {
-                    "dirt"
-                } else {
-                    "paved"
-                }
-                .into()
-            });
-            let road = if h == "cycleway" {
-                "bike_path"
-            } else if matches!(h, "path" | "footway" | "pedestrian") {
-                if matches!(tag(t, "surface"), "dirt" | "ground") {
-                    "trail"
-                } else {
-                    "park_path"
-                }
-            } else {
-                h
-            };
             let shade = if tag(t, "covered") == "yes" || tag(t, "tunnel") == "yes" {
                 0.95
             } else if tag(t, "tree_lined") == "yes" {
@@ -309,54 +363,13 @@ pub fn create_edges_with_budget(
             } else {
                 (0.35 + green[1] * 0.58 - exposure * 0.18).clamp(0.04, 0.96)
             };
-            let sidewalk = t.contains_key("sidewalk") && tag(t, "sidewalk") != "no";
-            let speed = tag(t, "maxspeed")
-                .chars()
-                .filter(char::is_ascii_digit)
-                .collect::<String>()
-                .parse::<i32>()
-                .map(|n| ((n as f64 - 25.0) / 120.0).clamp(0.0, 0.2))
-                .unwrap_or(0.0);
-            let safety = (0.86 - exposure * 0.5
-                + if sidewalk { 0.14 } else { 0.0 }
-                + if tag(t, "lit") == "yes" { 0.06 } else { 0.0 }
-                + if path(h) { 0.16 } else { 0.0 }
-                - speed)
-                .clamp(0.05, 0.98);
-            let bike = if h == "cycleway" || tag(t, "bicycle") == "designated" {
-                0.96
-            } else if ["cycleway", "cycleway:left", "cycleway:right"]
-                .iter()
-                .any(|k| t.contains_key(*k))
-            {
-                0.82
-            } else if matches!(h, "residential" | "living_street") {
-                0.68
-            } else if h == "path" && tag(t, "bicycle") != "no" {
-                0.62
-            } else if matches!(h, "primary" | "secondary") {
-                0.34
-            } else {
-                0.52
-            };
-            let walk = if matches!(h, "footway" | "pedestrian") || tag(t, "foot") == "designated" {
-                0.96
-            } else if matches!(h, "path" | "track") {
-                0.9
-            } else if sidewalk {
-                0.78
-            } else if matches!(h, "residential" | "living_street") {
-                0.7
-            } else {
-                0.44
-            };
             edges.push(Edge {
                 id: format!("osm-way-{}-{start}-{i}", way.id),
                 from,
                 to,
                 distance_m: round(length, 0),
                 geometry: g[start..=i].into(),
-                surface_type: surface,
+                surface_type: surface.clone(),
                 road_type: road.into(),
                 elevation_gain_m: Some(0.0),
                 from_abs_elev_m: None,
@@ -387,17 +400,20 @@ pub fn create_edges_with_budget(
 pub fn trim(mut draft: Draft, p: &Preferences) -> Draft {
     let origin = start(p);
     let r = radius(p) * 1000.0;
-    let sort_key = |e: &Edge| {
-        let d = distance(origin, midpoint(e.geometry[0], *e.geometry.last().unwrap()));
-        (
-            d,
-            d - (e.park_score + e.shade_score + e.safety_score + e.scenery_score) * 120.0,
-        )
-    };
-    draft.edges.retain(|e| sort_key(e).0 <= r);
-    draft
+    let mut ranked: Vec<_> = draft
         .edges
-        .sort_by(|a, b| sort_key(a).1.total_cmp(&sort_key(b).1));
+        .into_iter()
+        .filter_map(|e| {
+            let d = distance(origin, midpoint(e.geometry[0], *e.geometry.last().unwrap()));
+            (d <= r).then(|| {
+                let score =
+                    d - (e.park_score + e.shade_score + e.safety_score + e.scenery_score) * 120.0;
+                (e, score)
+            })
+        })
+        .collect();
+    ranked.sort_by(|a, b| a.1.total_cmp(&b.1));
+    draft.edges = ranked.into_iter().map(|(e, _)| e).collect();
     draft.edges.truncate(if p.activity == Activity::Cycling {
         14000
     } else {
@@ -525,6 +541,88 @@ mod tests {
             envelope: AABB::from_corners(lo, hi),
         }
     }
+    fn exhaustive_score(p: Point, tree: &RTree<Feature>) -> [f64; 3] {
+        let mut hits: Vec<_> = tree.iter().map(|f| (f, feature_distance(p, f))).collect();
+        hits.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.order.cmp(&b.0.order)));
+        let mut scores = [0.0_f64; 3];
+        for (f, d) in hits.iter().take(5) {
+            let v = (1.0 - d / 300.0).clamp(0.0, 1.0);
+            scores[0] = scores[0].max(if matches!(f.kind, GreenKind::Park | GreenKind::Woods) {
+                v
+            } else {
+                v * 0.45
+            });
+            scores[1] = scores[1].max(match f.kind {
+                GreenKind::Woods => v,
+                GreenKind::Park => v * 0.72,
+                _ => v * 0.28,
+            });
+            scores[2] = scores[2].max(if matches!(f.kind, GreenKind::Water) {
+                v
+            } else {
+                v * 0.82
+            });
+        }
+        scores
+    }
+    #[test]
+    fn bounded_nearest_five_matches_full_sort() {
+        let mut fs = Vec::new();
+        for order in 0..80 {
+            let lng = (order % 11) as f64 * 0.0005;
+            fs.push(feature(
+                vec![Point { lat: 0.0, lng }, Point { lat: 0.0, lng }],
+                match order % 4 {
+                    0 => GreenKind::Park,
+                    1 => GreenKind::Woods,
+                    2 => GreenKind::Water,
+                    _ => GreenKind::Green,
+                },
+                order,
+            ));
+        }
+        let tree = RTree::bulk_load(fs);
+        for lng in [0.0, 0.0001, 0.0027, 0.02] {
+            let p = Point { lat: 0.0, lng };
+            assert_eq!(green_scores(p, &tree, false), exhaustive_score(p, &tree));
+            assert_eq!(green_scores(p, &tree, true), exhaustive_score(p, &tree));
+        }
+    }
+
+    #[test]
+    fn trim_preserves_equal_score_order() {
+        let prefs: Preferences = serde_json::from_value(serde_json::json!({
+            "activity":"running", "routeType":"loop", "startPoint":{"lat":0.0,"lng":0.0},
+            "parkPreference":0.0,"shadePreference":0.0,"safetyPreference":0.0,
+            "elevationPreference":0.0,"explorationPreference":0.0
+        }))
+        .unwrap();
+        let way = |id| OsmElement {
+            kind: "way".into(),
+            id,
+            nodes: Some(vec![1, 2]),
+            geometry: Some(vec![
+                Point { lat: 0.0, lng: 0.0 },
+                Point {
+                    lat: 0.001,
+                    lng: 0.0,
+                },
+            ]),
+            tags: Some(HashMap::from([("highway".into(), "residential".into())])),
+        };
+        let raw = create_edges(&[way(30), way(10), way(20)], &prefs, true);
+        let ids: Vec<_> = raw.edges.iter().map(|e| e.id.clone()).collect();
+        let trimmed = trim(raw, &prefs);
+        assert_eq!(
+            trimmed
+                .edges
+                .iter()
+                .map(|e| e.id.clone())
+                .collect::<Vec<_>>(),
+            ids
+        );
+    }
+
     #[test]
     fn containment_nearest_five_and_input_ties() {
         let polygon = vec![

@@ -300,7 +300,7 @@ fn explanation(p: &Preferences, m: &Metrics) -> String {
     body.push('.');
     body
 }
-pub fn rank(routes: &mut [Generated]) {
+pub fn rank(routes: &mut [&Generated]) {
     routes.sort_by(|a, b| {
         b.candidate
             .metrics
@@ -320,14 +320,14 @@ pub fn rank(routes: &mut [Generated]) {
             )
     });
 }
-pub fn diverse(
+pub fn diverse<'a>(
     g: &Graph,
-    routes: &[Generated],
+    routes: &[&'a Generated],
     max_overlap: f64,
     threshold: f64,
     limit: usize,
-) -> Vec<Generated> {
-    let mut kept: Vec<(Generated, HashMap<&str, f64>, Point)> = Vec::new();
+) -> Vec<&'a Generated> {
+    let mut kept: Vec<(&Generated, HashMap<&str, f64>, Point)> = Vec::new();
     for route in routes {
         let geometry = &route.candidate.geometry;
         let centroid = Point {
@@ -351,7 +351,7 @@ pub fn diverse(
         }) {
             continue;
         }
-        kept.push((route.clone(), distances, centroid));
+        kept.push((route, distances, centroid));
         if kept.len() >= limit {
             break;
         }
@@ -363,10 +363,9 @@ pub fn select(g: &Graph, p: &Preferences, raw: Vec<Generated>) -> Vec<Candidate>
     let mut pool: Vec<_> = raw
         .iter()
         .filter(|c| (c.candidate.distance_km - target).abs() / target <= tolerance(target))
-        .cloned()
         .collect();
     if pool.len() < 3 {
-        let mut by_miss = raw;
+        let mut by_miss: Vec<_> = raw.iter().collect();
         by_miss.sort_by(|a, b| {
             (a.candidate.distance_km - target)
                 .abs()
@@ -388,5 +387,14 @@ pub fn select(g: &Graph, p: &Preferences, raw: Vec<Generated>) -> Vec<Candidate>
             .total_score
             .total_cmp(&a.candidate.metrics.total_score)
     });
-    result.into_iter().take(3).map(|c| c.candidate).collect()
+    let positions: Vec<_> = result
+        .into_iter()
+        .take(3)
+        .map(|selected| raw.iter().position(|c| std::ptr::eq(c, selected)).unwrap())
+        .collect();
+    let mut owned: Vec<_> = raw.into_iter().map(Some).collect();
+    positions
+        .into_iter()
+        .map(|i| owned[i].take().unwrap().candidate)
+        .collect()
 }

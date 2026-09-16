@@ -2,6 +2,7 @@ pub mod geo;
 pub mod graph;
 pub mod model;
 pub mod osm;
+pub mod profiling;
 pub mod search;
 
 pub mod analysis;
