@@ -76,14 +76,34 @@ export function RouteResultsClient() {
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
         <h1 className="text-4xl font-semibold text-stone-950">No route selected yet</h1>
         <p className="mt-4 text-lg leading-8 text-stone-600">
-          Choose a mock Strava route or generate a new route.
+          Generate a route in the wizard, upload a GPX/KML file, or import from Strava.
         </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link
+            href="/wizard"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-800 px-5 py-3 font-semibold text-white hover:bg-stone-950"
+          >
+            Open wizard
+          </Link>
+          <Link
+            href="/upload"
+            className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-5 py-3 font-semibold text-stone-800 hover:border-emerald-600 hover:text-emerald-900"
+          >
+            Upload file
+          </Link>
+          <Link
+            href="/strava"
+            className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-5 py-3 font-semibold text-stone-800 hover:border-emerald-600 hover:text-emerald-900"
+          >
+            Import Strava
+          </Link>
+        </div>
         <Link
           href="/route-source"
-          className="mt-8 inline-flex items-center gap-2 rounded-lg bg-emerald-800 px-5 py-3 font-semibold text-white hover:bg-stone-950"
+          className="mt-6 inline-flex items-center gap-2 font-semibold text-stone-700 hover:text-emerald-900"
         >
           <ArrowLeft size={18} />
-          Choose route source
+          All route sources
         </Link>
       </div>
     );

@@ -58,8 +58,16 @@ export function UploadRouteClient() {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+        onClick={() => {
+          setError(null);
+          inputRef.current?.click();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            setError(null);
+            inputRef.current?.click();
+          }
+        }}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={(e) => {
@@ -81,7 +89,11 @@ export function UploadRouteClient() {
             {fileName ?? "Drop your file here"}
           </p>
           <p className="mt-1 text-sm text-stone-500">
-            {fileName ? "Parsing…" : "or click to browse — .gpx and .kml supported"}
+            {isParsing
+              ? "Parsing…"
+              : fileName
+                ? "Choose another file — .gpx and .kml only"
+                : "or click to browse — .gpx and .kml only"}
           </p>
         </div>
         <input
@@ -89,7 +101,10 @@ export function UploadRouteClient() {
           type="file"
           accept=".gpx,.kml"
           className="sr-only"
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.target.value = "";
+          }}
         />
       </div>
 

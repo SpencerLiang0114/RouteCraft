@@ -119,15 +119,24 @@ export function WizardClient() {
           Back
         </button>
         {step < stepTitles.length - 1 ? (
-          <button
-            type="button"
-            onClick={() => setStep((current) => Math.min(stepTitles.length - 1, current + 1))}
-            disabled={cannotContinue}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Continue
-            <ArrowRight size={18} />
-          </button>
+          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+            <button
+              type="button"
+              onClick={() => setStep((current) => Math.min(stepTitles.length - 1, current + 1))}
+              disabled={cannotContinue}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-950 px-5 py-3 font-semibold text-white hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Continue
+              <ArrowRight size={18} />
+            </button>
+            {cannotContinue && (
+              <p className="text-sm text-stone-600" role="status">
+                {step === 1
+                  ? "Select a start point to continue."
+                  : "Select an end point for point-to-point routes."}
+              </p>
+            )}
+          </div>
         ) : (
           <button
             type="button"
