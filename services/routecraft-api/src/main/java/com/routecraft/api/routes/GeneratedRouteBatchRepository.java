@@ -5,6 +5,8 @@ import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -12,6 +14,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import com.routecraft.api.auth.AppUser;
 import com.routecraft.api.routing.model.LatLng;
 import com.routecraft.api.routing.model.RouteCandidate;
 import com.routecraft.api.routing.model.UserPreferences;
@@ -20,10 +23,11 @@ import com.routecraft.api.routing.model.UserPreferences;
 public class GeneratedRouteBatchRepository {
 
     private static final String INSERT_BATCH_SQL = """
-            INSERT INTO generated_route_batches (id, preferences, route_count, bbox)
+            INSERT INTO generated_route_batches (id, preferences, route_count, bbox, user_id)
             VALUES (?, CAST(? AS jsonb), ?,
                     CASE WHEN ?::double precision IS NULL THEN NULL
-                         ELSE ST_MakeEnvelope(?, ?, ?, ?, 4326) END)
+                         ELSE ST_MakeEnvelope(?, ?, ?, ?, 4326) END,
+                    ?)
             """;
 
     private static final String INSERT_ROUTE_SQL = """
@@ -85,18 +89,27 @@ public class GeneratedRouteBatchRepository {
     }
 
     private void insertBatch(UUID batchId, JsonNode preferences, int routeCount, BoundingBox bbox) {
+        UUID userId = currentUserIdOrNull();
         if (bbox == null) {
             jdbcTemplate.update(
                     INSERT_BATCH_SQL,
                     batchId, payloadReader.toJson(preferences), routeCount,
-                    null, null, null, null, null);
+                    null, null, null, null, null, userId);
         } else {
             jdbcTemplate.update(
                     INSERT_BATCH_SQL,
                     batchId, payloadReader.toJson(preferences), routeCount,
                     bbox.west(),
-                    bbox.west(), bbox.south(), bbox.east(), bbox.north());
+                    bbox.west(), bbox.south(), bbox.east(), bbox.north(), userId);
         }
+    }
+
+    private static UUID currentUserIdOrNull() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AppUser user) {
+            return user.id();
+        }
+        return null;
     }
 
     private void insertCandidate(UUID batchId, RouteSnapshot route) {

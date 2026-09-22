@@ -15,7 +15,7 @@ import type {
 } from "leaflet";
 import { formatLatLng } from "@/lib/geoUtils";
 import type { LatLng } from "@/types/route";
-import { apiUrl } from "@/lib/api-client/routing";
+import { apiFetch } from "@/lib/api-client/http";
 
 type StartMode = "current" | "search" | "map" | "saved";
 
@@ -334,7 +334,7 @@ function StartLocationMap({
     setSearchMessage(null);
 
     try {
-      const response = await fetch(apiUrl(`/api/geocode/search?q=${encodeURIComponent(trimmedQuery)}`));
+      const response = await apiFetch(`/api/geocode/search?q=${encodeURIComponent(trimmedQuery)}`);
 
       if (!response.ok) {
         throw new Error("Address search failed.");

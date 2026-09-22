@@ -86,9 +86,9 @@ ROUTECRAFT_ROUTING_ENGINE=java docker compose up -d routecraft-api
 
 For native Java development, start only PostGIS with `docker compose up -d postgres`, then run `ROUTECRAFT_ROUTING_ENGINE=java ./mvnw spring-boot:run` from `services/routecraft-api`. For native Rust, run `cargo run --release --bin routecraft-engine` from `services/routecraft-engine`, then start Spring with `ROUTECRAFT_ENGINE_URL=http://localhost:8090 ./mvnw spring-boot:run` from the API directory.
 
-Strava is optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN` and `STRAVA_REFRESH_TOKEN` to enable live segment loading; without them, that flow uses local mock data. Backend configuration is documented in [services/routecraft-api/.env.example](services/routecraft-api/.env.example). The frontend only needs its public API URL configuration.
+Strava is optional. Export `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` to enable per-user Strava OAuth; users connect from the app after logging in. Without client credentials, the Strava flow uses local mock data. Backend configuration is documented in [services/routecraft-api/.env.example](services/routecraft-api/.env.example). The frontend only needs its public API URL configuration.
 
-This is a local-first demo. The backend has no authentication or per-user authorization; add those controls before exposing it publicly.
+Register or sign in at `/register` and `/login`. Session cookies protect API routes: each saved route and generated batch is owned by the authenticated user, and Strava tokens are stored per account. Public share pages at `/share/{token}` remain readable without login.
 
 ## Repository layout
 
@@ -120,10 +120,12 @@ Scoring accounts for distance, elevation, parks, shade, safety, scenery, explora
 
 | Table | Stored data |
 | --- | --- |
-| `saved_routes` | Saved route payloads and PostGIS LineString geometry |
-| `generated_route_batches` | Preferences, route count and indexed candidate-derived bounding box |
+| `saved_routes` | Per-user saved route payloads, library metadata, visibility and PostGIS LineString geometry |
+| `generated_route_batches` | Preferences, route count, owner and indexed candidate-derived bounding box |
 | `generated_route_candidates` | Candidate metadata, payload JSON and SRID 4326 geometry |
 | `osm_graph_cache` | Raw Overpass elements keyed by bounding box, with expiry |
+| `users` / `user_strava_tokens` | Accounts and per-user Strava OAuth tokens |
+| `route_shares` | Expiring public share tokens for saved routes |
 
 Each successful generation persists one batch and its candidates in a transaction.
 
@@ -142,9 +144,11 @@ cargo test --locked --release
 
 # apps/web
 pnpm lint
+pnpm test
 pnpm build
+pnpm test:e2e
 ```
 
-The merged migration passed 29 Java tests, seven Rust unit tests and the 54-case Rust differential test. The recorded matrix checks graph attributes, candidate IDs and paths, field presence, enums, explanations and exact published rounding, using a 1e-6 tolerance for internal floating-point values. Real Docker integration covers the full matrix, restart and Java rollback; the frontend API-client smoke verifies one persisted batch and valid PostGIS geometry. CI runs these backend and integration checks on pushes and pull requests.
+The merged migration passed 29 Java tests, seven Rust unit tests and the 54-case Rust differential test. The recorded matrix checks graph attributes, candidate IDs and paths, field presence, enums, explanations and exact published rounding, using a 1e-6 tolerance for internal floating-point values. Real Docker integration covers the full matrix, restart and Java rollback; the frontend API-client smoke verifies one persisted batch and valid PostGIS geometry. CI runs backend, frontend lint/test/build/e2e and integration checks on pushes and pull requests.
 
 Use the [verification instructions](services/routing-compat/README.md#verification) to create the separate integration database and run the Docker/API-client checks. See [benchmark reproduction](services/routing-compat/README.md#performance-and-adoption) for the CPU and HTTP/memory harnesses. OpenStreetMap fixtures include source queries, capture metadata and [attribution](https://www.openstreetmap.org/copyright).

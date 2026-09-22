@@ -27,6 +27,29 @@ jobs:
         working-directory: services/routecraft-engine
       - run: cargo test --locked --release
         working-directory: services/routecraft-engine
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/web/package.json
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - run: npx playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          CI: true
+
   integration:
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +75,7 @@ jobs:
       - run: docker compose -f docker-compose.yml -f services/routing-compat/compose.test.yml up -d --build routecraft-api
       - run: |
           for attempt in $(seq 1 60); do
-            if curl --silent http://localhost:18080/api/osm-graph-cache?bbox=not-ready >/dev/null; then break; fi
+            if curl --silent http://localhost:18080/api/health >/dev/null; then break; fi
             sleep 1
           done
           python3 services/routing-compat/scripts/seed-smoke.py

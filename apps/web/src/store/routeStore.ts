@@ -3,7 +3,15 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { get, set as idbSet, del } from "idb-keyval";
-import { loadSavedRoutes as fetchSavedRoutes, saveRoute as persistSavedRoute } from "@/lib/api-client/savedRoutes";
+import {
+  deleteSavedRoute as deleteSavedRouteRequest,
+  duplicateSavedRoute as duplicateSavedRouteRequest,
+  loadSavedRoutes as fetchSavedRoutes,
+  saveRoute as persistSavedRoute,
+  updateSavedRoute as updateSavedRouteRequest,
+  type SavedRoutePatch,
+  type SavedRoutesQuery,
+} from "@/lib/api-client/savedRoutes";
 import type { RouteCandidate, SavedRoute } from "@/types/route";
 
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -19,8 +27,11 @@ interface RouteFlowState {
   savedRoutesError: string | null;
   setResults: (routes: RouteCandidate[], activeRouteId?: string) => void;
   setActiveRoute: (routeId: string) => void;
-  loadSavedRoutes: () => Promise<void>;
+  loadSavedRoutes: (query?: SavedRoutesQuery) => Promise<void>;
   saveRoute: (route: RouteCandidate) => Promise<SavedRoute>;
+  updateRoute: (id: string, patch: SavedRoutePatch) => Promise<SavedRoute>;
+  deleteRoute: (id: string) => Promise<void>;
+  duplicateRoute: (id: string) => Promise<SavedRoute>;
 }
 
 type PersistedRouteFlowState = Pick<RouteFlowState, "results" | "activeRouteId">;
@@ -47,6 +58,17 @@ const storage = createJSONStorage<PersistedRouteFlowState>(() =>
   typeof window === "undefined" ? noopStorage : indexedDBStorage,
 );
 
+function upsertSavedRoute(routes: SavedRoute[], savedRoute: SavedRoute) {
+  const index = routes.findIndex((existing) => existing.id === savedRoute.id);
+  const nextRoutes = [...routes];
+  if (index >= 0) {
+    nextRoutes[index] = savedRoute;
+  } else {
+    nextRoutes.unshift(savedRoute);
+  }
+  return nextRoutes;
+}
+
 export const useRouteStore = create<RouteFlowState>()(
   persist<RouteFlowState, [], [], PersistedRouteFlowState>(
     (set) => ({
@@ -61,10 +83,10 @@ export const useRouteStore = create<RouteFlowState>()(
           activeRouteId: activeRouteId ?? routes[0]?.id ?? null,
         }),
       setActiveRoute: (routeId) => set({ activeRouteId: routeId }),
-      loadSavedRoutes: async () => {
+      loadSavedRoutes: async (query) => {
         set({ savedRoutesStatus: "loading", savedRoutesError: null });
         try {
-          const savedRoutes = await fetchSavedRoutes();
+          const savedRoutes = await fetchSavedRoutes(query);
           set({ savedRoutes, savedRoutesStatus: "ready" });
         } catch (error) {
           set({
@@ -76,25 +98,66 @@ export const useRouteStore = create<RouteFlowState>()(
       saveRoute: async (route) => {
         try {
           const savedRoute = await persistSavedRoute(route);
-          set((state) => {
-            const index = state.savedRoutes.findIndex((existing) => existing.id === savedRoute.id);
-            const nextRoutes = [...state.savedRoutes];
-            if (index >= 0) {
-              nextRoutes[index] = savedRoute;
-            } else {
-              nextRoutes.unshift(savedRoute);
-            }
-            return {
-              savedRoutes: nextRoutes,
-              savedRoutesStatus: "ready",
-              savedRoutesError: null,
-            };
-          });
+          set((state) => ({
+            savedRoutes: upsertSavedRoute(state.savedRoutes, savedRoute),
+            savedRoutesStatus: "ready",
+            savedRoutesError: null,
+          }));
           return savedRoute;
         } catch (error) {
           set({
             savedRoutesStatus: "error",
             savedRoutesError: getErrorMessage(error, "Could not save route."),
+          });
+          throw error;
+        }
+      },
+      updateRoute: async (id, patch) => {
+        try {
+          const savedRoute = await updateSavedRouteRequest(id, patch);
+          set((state) => ({
+            savedRoutes: upsertSavedRoute(state.savedRoutes, savedRoute),
+            savedRoutesStatus: "ready",
+            savedRoutesError: null,
+          }));
+          return savedRoute;
+        } catch (error) {
+          set({
+            savedRoutesStatus: "error",
+            savedRoutesError: getErrorMessage(error, "Could not update route."),
+          });
+          throw error;
+        }
+      },
+      deleteRoute: async (id) => {
+        try {
+          await deleteSavedRouteRequest(id);
+          set((state) => ({
+            savedRoutes: state.savedRoutes.filter((route) => route.id !== id),
+            savedRoutesStatus: "ready",
+            savedRoutesError: null,
+          }));
+        } catch (error) {
+          set({
+            savedRoutesStatus: "error",
+            savedRoutesError: getErrorMessage(error, "Could not delete route."),
+          });
+          throw error;
+        }
+      },
+      duplicateRoute: async (id) => {
+        try {
+          const savedRoute = await duplicateSavedRouteRequest(id);
+          set((state) => ({
+            savedRoutes: upsertSavedRoute(state.savedRoutes, savedRoute),
+            savedRoutesStatus: "ready",
+            savedRoutesError: null,
+          }));
+          return savedRoute;
+        } catch (error) {
+          set({
+            savedRoutesStatus: "error",
+            savedRoutesError: getErrorMessage(error, "Could not duplicate route."),
           });
           throw error;
         }

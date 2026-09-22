@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileUp, Upload } from "lucide-react";
 import { parseGpxRoute } from "@/lib/gpxParser";
 import { parseKmlRoute } from "@/lib/kmlParser";
+import { assertUploadSize } from "@/lib/xmlUtils";
 import { useRouteStore } from "@/store/routeStore";
 
 export function UploadRouteClient() {
@@ -22,7 +23,9 @@ export function UploadRouteClient() {
     setIsParsing(true);
 
     try {
+      assertUploadSize(file.size);
       const text = await file.text();
+      assertUploadSize(text.length);
       const ext = file.name.split(".").pop()?.toLowerCase();
 
       let route;

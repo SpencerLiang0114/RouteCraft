@@ -74,8 +74,14 @@ export interface RouteCandidate {
   explanation: string;
 }
 
+export type RouteVisibility = "private" | "public";
+
 export interface SavedRoute extends RouteCandidate {
   savedAt: string;
+  notes?: string;
+  tags?: string[];
+  folder?: string | null;
+  visibility?: RouteVisibility;
 }
 
 export interface RouteAnalysisSignals {

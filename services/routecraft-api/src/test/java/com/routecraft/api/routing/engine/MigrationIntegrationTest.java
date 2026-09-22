@@ -34,7 +34,9 @@ class MigrationIntegrationTest {
     @Test void fixtureMatrixThroughHttpAndPostgis() throws Exception {
         int samples=Integer.getInteger("routecraft.benchmark.samples",1);
         int warmups=Integer.getInteger("routecraft.benchmark.warmups",0);
-        var client=HttpClient.newHttpClient();
+        CookieManager cookies=new CookieManager();
+        var client=HttpClient.newBuilder().cookieHandler(cookies).build();
+        registerAndLogin(client);
         var rows=new ArrayList<Map<String,Object>>();
         var firstEncounters=new ArrayList<Map<String,Object>>();
         Path output=Path.of("../routing-compat/results");Files.createDirectories(output);
@@ -83,5 +85,18 @@ class MigrationIntegrationTest {
         }
         Files.writeString(output.resolve(mode+"-integration.json"),mapper.writeValueAsString(rows));
         Files.writeString(output.resolve(mode+"-first-encounters.json"),mapper.writeValueAsString(firstEncounters));
+    }
+
+    private void registerAndLogin(HttpClient client) throws Exception {
+        String email="integration-"+UUID.randomUUID()+"@routecraft.test";
+        String body=mapper.writeValueAsString(Map.of(
+                "email", email,
+                "password", "test-password-123",
+                "displayName", "Integration"));
+        var response=client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/auth/register"))
+                .header("Content-Type","application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build(), HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, response.statusCode(), new String(response.body()));
     }
 }

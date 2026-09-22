@@ -74,6 +74,9 @@ class RoutePayloadReader {
             coordinate.add(requiredCoordinate(point, "lng", -180, 180));
             coordinate.add(requiredCoordinate(point, "lat", -90, 90));
             coordinates.add(coordinate);
+            if (coordinates.size() > 50_000) {
+                throw new IllegalArgumentException("Route exceeds the maximum of 50000 points.");
+            }
         }
 
         lineString.put("type", "LineString");

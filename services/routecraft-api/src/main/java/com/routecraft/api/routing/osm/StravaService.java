@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -11,12 +13,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.routecraft.api.auth.AppUser;
+import com.routecraft.api.auth.StravaTokenRepository;
+import com.routecraft.api.auth.StravaTokenRepository.StravaTokens;
 import com.routecraft.api.routing.graph.GeoUtils;
 import com.routecraft.api.routing.model.LatLng;
 
@@ -25,105 +32,128 @@ public class StravaService {
     private static final Logger logger = LoggerFactory.getLogger(StravaService.class);
 
     private final RestClient restClient;
+    private final StravaTokenRepository tokenRepository;
     private final String clientId;
     private final String clientSecret;
-    
-    private String accessToken;
-    private String refreshToken;
-    private long expiresAt;
 
     private static final long CACHE_TTL_MS = 10 * 60 * 1000;
     private static final int CACHE_MAX_ENTRIES = 120;
     private final Map<String, CachedResponse> cache = new ConcurrentHashMap<>();
 
     public StravaService(
+            StravaTokenRepository tokenRepository,
             @Value("${strava.client.id:}") String clientId,
-            @Value("${strava.client.secret:}") String clientSecret,
-            @Value("${strava.access.token:}") String accessToken,
-            @Value("${strava.refresh.token:}") String refreshToken) {
+            @Value("${strava.client.secret:}") String clientSecret) {
+        this.tokenRepository = tokenRepository;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
-        this.accessToken = accessToken;
-        this.refreshToken = refreshToken;
-        this.expiresAt = 0;
         this.restClient = RestClient.builder().build();
     }
 
-    public boolean isConfigured() {
-        return clientId != null && !clientId.isEmpty() && accessToken != null && !accessToken.isEmpty();
-    }
-
-    private synchronized void refreshAccessTokenIfNeeded() {
-        if (!isConfigured()) return;
-        if (expiresAt != 0 && Instant.now().getEpochSecond() > expiresAt - 300) {
-            try {
-                MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-                body.add("client_id", clientId);
-                body.add("client_secret", clientSecret);
-                body.add("grant_type", "refresh_token");
-                body.add("refresh_token", refreshToken);
-
-                StravaTokenResponse tokenResponse = restClient.post()
-                        .uri("https://www.strava.com/oauth/token")
-                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                        .body(body)
-                        .retrieve()
-                        .body(StravaTokenResponse.class);
-
-                if (tokenResponse != null && tokenResponse.accessToken() != null) {
-                    this.accessToken = tokenResponse.accessToken();
-                    this.refreshToken = tokenResponse.refreshToken();
-                    this.expiresAt = tokenResponse.expiresAt();
-                }
-            } catch (Exception e) {
-                logger.error("Failed to refresh Strava token", e);
-            }
-        }
+    public boolean isOAuthConfigured() {
+        return clientId != null && !clientId.isEmpty() && clientSecret != null && !clientSecret.isEmpty();
     }
 
     public StravaExploreResult exploreSegments(double[] bounds, String activity) {
-        if (!isConfigured()) {
-            return new StravaExploreResult("mock", List.of(), "Missing Strava environment variables.");
+        Optional<StravaTokens> tokens = resolveUserTokens();
+        if (tokens.isEmpty()) {
+            return new StravaExploreResult(
+                    "mock",
+                    List.of(),
+                    isOAuthConfigured()
+                            ? "Connect your Strava account to load live segments."
+                            : "Strava OAuth is not configured.");
         }
 
         List<String> activities = "all".equals(activity) ? List.of("running", "riding") : List.of(activity);
         List<StravaSegment> segments = new ArrayList<>();
 
         for (String act : activities) {
-            String url = String.format("https://www.strava.com/api/v3/segments/explore?bounds=%f,%f,%f,%f&activity_type=%s",
+            String url = String.format(
+                    "https://www.strava.com/api/v3/segments/explore?bounds=%f,%f,%f,%f&activity_type=%s",
                     bounds[0], bounds[1], bounds[2], bounds[3], act);
-            
+
             try {
-                StravaExplorerResponse response = getCachedOrFetch(url);
+                StravaExplorerResponse response = getCachedOrFetch(url, tokens.get());
                 if (response != null && response.segments() != null) {
                     segments.addAll(normalize(response.segments(), act));
                 }
             } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
-                return new StravaExploreResult("mock", List.of(), "Strava API rate limit reached, falling back to mock routes.");
+                return new StravaExploreResult(
+                        "mock",
+                        List.of(),
+                        "Strava API rate limit reached, falling back to mock routes.");
             }
         }
 
         return new StravaExploreResult("strava-api", segments, null);
     }
 
-    private StravaExplorerResponse getCachedOrFetch(String url) {
+    private Optional<StravaTokens> resolveUserTokens() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof AppUser user)) {
+            return Optional.empty();
+        }
+        Optional<StravaTokens> tokens = tokenRepository.findByUserId(user.id());
+        if (tokens.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(refreshAccessTokenIfNeeded(user.id(), tokens.get()));
+    }
+
+    private synchronized StravaTokens refreshAccessTokenIfNeeded(UUID userId, StravaTokens tokens) {
+        if (!isOAuthConfigured()) {
+            return tokens;
+        }
+        if (tokens.expiresAt().isAfter(Instant.now().plusSeconds(300))) {
+            return tokens;
+        }
+
+        try {
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("client_id", clientId);
+            body.add("client_secret", clientSecret);
+            body.add("grant_type", "refresh_token");
+            body.add("refresh_token", tokens.refreshToken());
+
+            StravaTokenResponse tokenResponse = restClient.post()
+                    .uri("https://www.strava.com/oauth/token")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .body(StravaTokenResponse.class);
+
+            if (tokenResponse != null && tokenResponse.accessToken() != null) {
+                StravaTokens refreshed = new StravaTokens(
+                        tokenResponse.accessToken(),
+                        tokenResponse.refreshToken() == null ? tokens.refreshToken() : tokenResponse.refreshToken(),
+                        Instant.ofEpochSecond(tokenResponse.expiresAt()),
+                        tokens.athleteId());
+                tokenRepository.upsert(userId, refreshed);
+                return refreshed;
+            }
+        } catch (Exception e) {
+            logger.error("Failed to refresh Strava token", e);
+        }
+        return tokens;
+    }
+
+    private StravaExplorerResponse getCachedOrFetch(String url, StravaTokens tokens) {
         CachedResponse cached = cache.get(url);
         if (cached != null && cached.expiresAt() > System.currentTimeMillis()) {
             return cached.response();
         }
 
-        refreshAccessTokenIfNeeded();
-
         try {
             StravaExplorerResponse response = restClient.get()
                     .uri(url)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.accessToken())
                     .retrieve()
                     .body(StravaExplorerResponse.class);
 
             if (response != null) {
                 if (cache.size() >= CACHE_MAX_ENTRIES) {
-                    cache.clear(); 
+                    cache.clear();
                 }
                 cache.put(url, new CachedResponse(System.currentTimeMillis() + CACHE_TTL_MS, response));
             }

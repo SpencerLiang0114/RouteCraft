@@ -1,55 +1,81 @@
 import type { RouteCandidate } from "@/types/route";
 import { analyzeRoute } from "./routeAnalyzer";
 import { buildElevationProfile, calculateRouteDistanceKm, slugify } from "./geoUtils";
+import {
+  assertParsableXml,
+  assertPointCount,
+  computeElevationGainM,
+  normalizeElevation,
+  sanitizeCoordinate,
+} from "./xmlUtils";
+
+type ParsedPoint = {
+  lat: number;
+  lng: number;
+  elevation: number | null;
+};
+
+function parseCoordinateToken(token: string): ParsedPoint | null {
+  const parts = token.split(",");
+  if (parts.length < 2) return null;
+
+  const lng = Number(parts[0]);
+  const lat = Number(parts[1]);
+  const elevation = parts.length >= 3 ? normalizeElevation(parts[2]) : null;
+
+  try {
+    const coords = sanitizeCoordinate(lat, lng);
+    return { ...coords, elevation };
+  } catch {
+    return null;
+  }
+}
+
+function pointsFromCoordinateText(text: string): ParsedPoint[] {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(parseCoordinateToken)
+    .filter((point): point is ParsedPoint => point !== null);
+}
 
 export function parseKmlRoute(xml: string, fallbackName: string): RouteCandidate {
-  const document = new DOMParser().parseFromString(xml, "application/xml");
-  const parserError = document.querySelector("parsererror");
-
-  if (parserError) {
-    throw new Error("Invalid KML file.");
-  }
+  const document = assertParsableXml(xml, "Invalid KML file.");
 
   const name = document.querySelector("Placemark > name, Document > name")?.textContent;
   const coordinateElements = Array.from(document.querySelectorAll("LineString coordinates"));
 
   if (coordinateElements.length === 0) {
+    const hasPolygon = document.querySelector("Polygon") !== null;
+    if (hasPolygon) {
+      throw new Error("Unsupported KML geometry: Polygon-only files are not supported. Use a LineString.");
+    }
     throw new Error("KML route needs LineString coordinates.");
   }
 
-  const combinedCoordinateText = coordinateElements
-    .map((el) => el.textContent?.trim() ?? "")
-    .filter(Boolean)
-    .join(" ");
+  const points = coordinateElements.flatMap((element) =>
+    pointsFromCoordinateText(element.textContent ?? ""),
+  );
 
-  const rawPoints = combinedCoordinateText
-    .trim()
-    .split(/\s+/)
-    .map((coordinate) => {
-      const parts = coordinate.split(",").map(Number);
-      return { lng: parts[0], lat: parts[1], elevation: parts[2] ?? 0 };
-    });
+  assertPointCount(points.length);
 
-  const geometry = rawPoints.map(({ lat, lng }) => ({ lat, lng }));
-
-  if (geometry.length < 2 || geometry.some((point) => Number.isNaN(point.lat) || Number.isNaN(point.lng))) {
+  if (points.length < 2) {
     throw new Error("KML route needs at least two valid coordinates.");
   }
 
-  const hasElevation = rawPoints.some((p) => p.elevation !== 0);
-  const elevationGainM = hasElevation
-    ? rawPoints.reduce((gain, point, index) => {
-        if (index === 0) return gain;
-        const delta = point.elevation - rawPoints[index - 1].elevation;
-        return delta > 0 ? gain + delta : gain;
-      }, 0)
-    : 0;
+  const elevations = points.map((point) => point.elevation);
+  const hasElevation = elevations.some((elevation) => elevation !== null);
+  const elevationGainM = hasElevation ? computeElevationGainM(elevations) : 0;
+  const geometry = points.map(({ lat, lng }) => ({ lat, lng }));
 
   const elevationProfile = hasElevation
-    ? buildElevationProfile(geometry, rawPoints.map((p) => p.elevation))
+    ? buildElevationProfile(
+        geometry,
+        elevations.map((elevation) => elevation ?? 0),
+      )
     : undefined;
 
-  // TODO: Improve KML import by supporting MultiGeometry, route names, and source-specific metadata.
   return analyzeRoute({
     id: `uploaded-${slugify(name ?? fallbackName)}`,
     source: "uploaded",
