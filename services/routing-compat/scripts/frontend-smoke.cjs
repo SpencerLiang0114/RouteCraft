@@ -37,7 +37,6 @@ function loadModule(relativePath) {
     },
   });
   vm.runInContext(compileTs(relativePath), context);
-  Object.assign(exportsObject, context.module.exports);
   return exportsObject;
 }
 
