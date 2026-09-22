@@ -24,6 +24,7 @@ import { formatActivity } from "@/lib/geoUtils";
 import { loadStravaSegments } from "@/lib/api-client/strava";
 import { useRouteStore } from "@/store/routeStore";
 import type { ExternalRouteMock, LatLng } from "@/types/route";
+import { formatDistance, formatElevation } from "@/lib/units";
 
 type StravaFilter = "all" | "running" | "cycling";
 type StravaStatus = "loading" | "live" | "mock" | "error";
@@ -169,7 +170,7 @@ export function StravaRoutePicker() {
           setSelectedRouteId(data.segments[0].id);
           setStravaStatus("live");
           setStravaMessage(
-            `Showing ${data.segments.length} of up to ${STRAVA_SEGMENT_LIMIT} live Strava segment${data.segments.length === 1 ? "" : "s"} with a path inside ${STRAVA_RADIUS_KM} km.`,
+            `Showing ${data.segments.length} of up to ${STRAVA_SEGMENT_LIMIT} live Strava segment${data.segments.length === 1 ? "" : "s"} with a path inside ${formatDistance(STRAVA_RADIUS_KM)}.`,
           );
           return;
         }
@@ -499,8 +500,8 @@ export function StravaRoutePicker() {
                   </span>
                 </div>
                 <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
-                  <Metric icon={<Activity size={15} />} label="Distance" value={`${route.distanceKm} km`} />
-                  <Metric icon={<Mountain size={15} />} label="Gain" value={`${route.elevationGainM} m`} />
+                  <Metric icon={<Activity size={15} />} label="Distance" value={formatDistance(route.distanceKm)} />
+                  <Metric icon={<Mountain size={15} />} label="Gain" value={formatElevation(route.elevationGainM)} />
                   <Metric
                     icon={<Timer size={15} />}
                     label="Time"

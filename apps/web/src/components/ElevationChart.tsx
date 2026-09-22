@@ -1,10 +1,11 @@
 "use client";
 
 import type { ElevationPoint } from "@/types/route";
+import { formatMiles, mToFt } from "@/lib/units";
 
 const W = 600;
-const H = 130;
-const PAD = { top: 16, right: 16, bottom: 28, left: 52 };
+const H = 144;
+const PAD = { top: 16, right: 56, bottom: 42, left: 52 };
 const INNER_W = W - PAD.left - PAD.right;
 const INNER_H = H - PAD.top - PAD.bottom;
 
@@ -45,6 +46,7 @@ export function ElevationChart({ profile }: { profile: ElevationPoint[] }) {
   }
 
   const yTicks = ticks(minElev, maxElev, 4);
+  const yTicksFt = ticks(mToFt(minElev), mToFt(maxElev), 4);
 
   const xLabelCount = Math.min(Math.ceil(maxDist) + 1, 8);
   const xStep = maxDist / (xLabelCount - 1);
@@ -77,7 +79,7 @@ export function ElevationChart({ profile }: { profile: ElevationPoint[] }) {
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
-        style={{ height: 160 }}
+        style={{ height: 176 }}
         aria-label="Elevation profile chart"
       >
         {yTicks.map((tick) => {
@@ -107,6 +109,23 @@ export function ElevationChart({ profile }: { profile: ElevationPoint[] }) {
           );
         })}
 
+        {yTicksFt.map((tickFt) => {
+          const yPos = y(tickFt / mToFt(1));
+          if (yPos < PAD.top - 4 || yPos > PAD.top + INNER_H + 4) return null;
+          return (
+            <text
+              key={`ft-${tickFt}`}
+              x={PAD.left + INNER_W + 6}
+              y={yPos + 4}
+              textAnchor="start"
+              fontSize={11}
+              fill="#78716c"
+            >
+              {tickFt} ft
+            </text>
+          );
+        })}
+
         <path d={areaPath} fill="#9ca3af" opacity={0.68} />
         <path
           d={linePath}
@@ -127,6 +146,9 @@ export function ElevationChart({ profile }: { profile: ElevationPoint[] }) {
             fill="#78716c"
           >
             {d} km
+            <tspan x={x(d)} dy={13} fontSize={10} fill="#a8a29e">
+              {formatMiles(d)}
+            </tspan>
           </text>
         ))}
       </svg>
