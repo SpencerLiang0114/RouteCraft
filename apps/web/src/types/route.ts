@@ -76,6 +76,7 @@ export interface RouteCandidate {
 
 export interface SavedRoute extends RouteCandidate {
   savedAt: string;
+  notes?: string | null;
 }
 
 export interface RouteAnalysisSignals {

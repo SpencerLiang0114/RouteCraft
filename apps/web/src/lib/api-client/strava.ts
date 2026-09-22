@@ -1,7 +1,7 @@
 import "client-only";
 
 import type { ExternalRouteMock, LatLng } from "@/types/route";
-import { apiUrl } from "./routing";
+import { apiFetch } from "./http";
 
 export type StravaSegmentsSource = "strava-api" | "mock";
 export type StravaSegmentsActivity = "all" | "running" | "riding";
@@ -32,10 +32,8 @@ export async function loadStravaSegments({
     radiusKm: String(radiusKm),
     limit: String(limit),
   });
-  const response = await fetch(apiUrl(`/api/strava/segments?${params.toString()}`), {
-    signal,
-    cache: "no-store",
-  });
+  // Public endpoint, but include credentials so a connected account gets live data.
+  const response = await apiFetch(`/api/strava/segments?${params.toString()}`, { signal });
   const data = (await response.json().catch(() => null)) as Partial<StravaSegmentsResult> | null;
 
   if (!response.ok || !data || !Array.isArray(data.segments)) {

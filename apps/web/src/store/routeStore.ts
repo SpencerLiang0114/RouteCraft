@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { get, set as idbSet, del } from "idb-keyval";
-import { loadSavedRoutes as fetchSavedRoutes, saveRoute as persistSavedRoute } from "@/lib/api-client/savedRoutes";
+import { loadSavedRoutes as fetchSavedRoutes, saveRoute as persistSavedRoute, deleteSavedRoute, updateSavedRoute } from "@/lib/api-client/savedRoutes";
 import type { RouteCandidate, SavedRoute } from "@/types/route";
 
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -21,6 +21,8 @@ interface RouteFlowState {
   setActiveRoute: (routeId: string) => void;
   loadSavedRoutes: () => Promise<void>;
   saveRoute: (route: RouteCandidate) => Promise<SavedRoute>;
+  updateRoute: (id: string, patch: { name?: string; notes?: string | null }) => Promise<SavedRoute>;
+  deleteRoute: (id: string) => Promise<void>;
 }
 
 type PersistedRouteFlowState = Pick<RouteFlowState, "results" | "activeRouteId">;
@@ -98,6 +100,23 @@ export const useRouteStore = create<RouteFlowState>()(
           });
           throw error;
         }
+      },
+      updateRoute: async (id, patch) => {
+        const savedRoute = await updateSavedRoute(id, patch);
+        set((state) => ({
+          savedRoutes: state.savedRoutes.map((route) => (route.id === id ? savedRoute : route)),
+          savedRoutesStatus: "ready",
+          savedRoutesError: null,
+        }));
+        return savedRoute;
+      },
+      deleteRoute: async (id) => {
+        await deleteSavedRoute(id);
+        set((state) => ({
+          savedRoutes: state.savedRoutes.filter((route) => route.id !== id),
+          savedRoutesStatus: "ready",
+          savedRoutesError: null,
+        }));
       },
     }),
     {

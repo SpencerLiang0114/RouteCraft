@@ -86,9 +86,9 @@ ROUTECRAFT_ROUTING_ENGINE=java docker compose up -d routecraft-api
 
 For native Java development, start only PostGIS with `docker compose up -d postgres`, then run `ROUTECRAFT_ROUTING_ENGINE=java ./mvnw spring-boot:run` from `services/routecraft-api`. For native Rust, run `cargo run --release --bin routecraft-engine` from `services/routecraft-engine`, then start Spring with `ROUTECRAFT_ENGINE_URL=http://localhost:8090 ./mvnw spring-boot:run` from the API directory.
 
-Strava is optional. Export `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN` and `STRAVA_REFRESH_TOKEN` to enable live segment loading; without them, that flow uses local mock data. Backend configuration is documented in [services/routecraft-api/.env.example](services/routecraft-api/.env.example). The frontend only needs its public API URL configuration.
+Strava is optional. Export `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` to enable per-user Strava OAuth; users connect from `/strava` after signing in. Without client credentials, that flow uses local mock data. Backend configuration is documented in [services/routecraft-api/.env.example](services/routecraft-api/.env.example).
 
-This is a local-first demo. The backend has no authentication or per-user authorization; add those controls before exposing it publicly.
+Register or sign in at `/register` and `/login`. Session cookies plus CSRF protect saved-route and account endpoints. Route generation, geocoding, and OSM cache stay public so the wizard works without an account. Public share pages live at `/share/{token}` and expire by default after seven days.
 
 ## Repository layout
 
