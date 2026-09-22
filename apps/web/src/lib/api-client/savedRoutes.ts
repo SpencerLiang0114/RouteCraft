@@ -1,43 +1,22 @@
 import "client-only";
 
 import type { RouteCandidate, SavedRoute } from "@/types/route";
-import { apiUrl } from "./routing";
-
-async function readJson<T>(response: Response, fallbackMessage: string): Promise<T> {
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message = data && typeof data === "object" && "message" in data
-      ? String(data.message)
-      : fallbackMessage;
-    throw new Error(message);
-  }
-  return data as T;
-}
+import { apiFetch, readJson } from "./http";
 
 export async function loadSavedRoutes(signal?: AbortSignal): Promise<SavedRoute[]> {
-  const response = await fetch(apiUrl("/api/saved-routes"), {
-    cache: "no-store",
-    signal,
-  });
+  const response = await apiFetch("/api/saved-routes", { signal });
   const data = await readJson<unknown>(response, "Could not load saved routes.");
-
   if (!Array.isArray(data)) {
     throw new Error("Saved routes response was not an array.");
   }
-
   return data as SavedRoute[];
 }
 
 export async function loadSavedRoute(id: string, signal?: AbortSignal): Promise<SavedRoute | null> {
-  const response = await fetch(apiUrl(`/api/saved-routes/${encodeURIComponent(id)}`), {
-    cache: "no-store",
-    signal,
-  });
-
+  const response = await apiFetch(`/api/saved-routes/${encodeURIComponent(id)}`, { signal });
   if (response.status === 404) {
     return null;
   }
-
   return readJson<SavedRoute>(response, "Could not load saved route.");
 }
 
@@ -46,13 +25,29 @@ export async function saveRoute(route: RouteCandidate): Promise<SavedRoute> {
     ...route,
     savedAt: new Date().toISOString(),
   };
-  const response = await fetch(apiUrl("/api/saved-routes"), {
+  const response = await apiFetch("/api/saved-routes", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(savedRoute),
   });
-
   return readJson<SavedRoute>(response, "Could not save route.");
+}
+
+export async function updateSavedRoute(
+  id: string,
+  patch: { name?: string; notes?: string | null },
+): Promise<SavedRoute> {
+  const response = await apiFetch(`/api/saved-routes/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  return readJson<SavedRoute>(response, "Could not update saved route.");
+}
+
+export async function deleteSavedRoute(id: string): Promise<void> {
+  const response = await apiFetch(`/api/saved-routes/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error("Could not delete saved route.");
+  }
 }

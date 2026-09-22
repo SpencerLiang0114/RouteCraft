@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { StravaConnectBanner } from "@/components/StravaConnectBanner";
 import { StravaRoutePicker } from "@/components/StravaRoutePicker";
 
 export default function StravaPage() {
@@ -13,10 +14,11 @@ export default function StravaPage() {
         <p className="font-semibold text-orange-600">Strava route map</p>
         <h1 className="mt-2 text-4xl font-semibold text-stone-950">Explore existing routes near you</h1>
         <p className="mt-4 text-lg leading-8 text-stone-600">
-          Nearby Strava segments load when backend credentials are configured; otherwise RouteCraft
-          shows local mock routes centered on your browser location when available.
+          Connect your Strava account after signing in to load live nearby segments; otherwise
+          RouteCraft shows local mock routes.
         </p>
       </div>
+      <StravaConnectBanner />
       <StravaRoutePicker />
     </main>
   );

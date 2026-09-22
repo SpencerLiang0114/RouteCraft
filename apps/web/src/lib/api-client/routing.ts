@@ -1,13 +1,9 @@
 import "client-only";
 
 import type { RouteCandidate, UserPreferences } from "@/types/route";
+import { apiFetch, apiUrl, readJson } from "./http";
 
-const DEFAULT_ROUTECRAFT_API_URL = "http://localhost:18080";
-
-export function apiUrl(path: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_ROUTECRAFT_API_URL?.trim() || DEFAULT_ROUTECRAFT_API_URL;
-  return `${baseUrl.replace(/\/$/, "")}${path}`;
-}
+export { apiUrl };
 
 export interface GenerateRoutesResult {
   routes: RouteCandidate[];
@@ -15,28 +11,30 @@ export interface GenerateRoutesResult {
 }
 
 export async function generateRoutes(preferences: UserPreferences): Promise<GenerateRoutesResult> {
+  // Public endpoint — no auth/CSRF required so the wizard keeps working.
   const response = await fetch(apiUrl("/api/routing/generate"), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(preferences),
     cache: "no-store",
   });
 
-  const data = (await response.json().catch(() => null)) as
-    | (Partial<GenerateRoutesResult> & { message?: string })
-    | null;
+  const data = await readJson<Partial<GenerateRoutesResult> & { message?: string }>(
+    response,
+    "Could not generate routes.",
+  );
 
-  if (!response.ok || !data || !Array.isArray(data.routes)) {
-    const message = data && typeof data.message === "string"
-      ? data.message
-      : "Could not generate routes.";
-    throw new Error(message);
+  if (!Array.isArray(data.routes)) {
+    throw new Error(data.message ?? "Could not generate routes.");
   }
 
   return {
     routes: data.routes,
     message: data.message,
   };
+}
+
+/** Authenticated optional: sends session cookie when present so live Strava tokens apply. */
+export async function apiGet(path: string, signal?: AbortSignal): Promise<Response> {
+  return apiFetch(path, { signal });
 }

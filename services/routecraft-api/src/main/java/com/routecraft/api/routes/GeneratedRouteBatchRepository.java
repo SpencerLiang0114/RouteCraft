@@ -12,6 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import com.routecraft.api.auth.AuthService;
 import com.routecraft.api.routing.model.LatLng;
 import com.routecraft.api.routing.model.RouteCandidate;
 import com.routecraft.api.routing.model.UserPreferences;
@@ -20,10 +21,11 @@ import com.routecraft.api.routing.model.UserPreferences;
 public class GeneratedRouteBatchRepository {
 
     private static final String INSERT_BATCH_SQL = """
-            INSERT INTO generated_route_batches (id, preferences, route_count, bbox)
+            INSERT INTO generated_route_batches (id, preferences, route_count, bbox, user_id)
             VALUES (?, CAST(? AS jsonb), ?,
                     CASE WHEN ?::double precision IS NULL THEN NULL
-                         ELSE ST_MakeEnvelope(?, ?, ?, ?, 4326) END)
+                         ELSE ST_MakeEnvelope(?, ?, ?, ?, 4326) END,
+                    ?)
             """;
 
     private static final String INSERT_ROUTE_SQL = """
@@ -85,17 +87,18 @@ public class GeneratedRouteBatchRepository {
     }
 
     private void insertBatch(UUID batchId, JsonNode preferences, int routeCount, BoundingBox bbox) {
+        UUID userId = AuthService.currentUserOptional().map(user -> user.id()).orElse(null);
         if (bbox == null) {
             jdbcTemplate.update(
                     INSERT_BATCH_SQL,
                     batchId, payloadReader.toJson(preferences), routeCount,
-                    null, null, null, null, null);
+                    null, null, null, null, null, userId);
         } else {
             jdbcTemplate.update(
                     INSERT_BATCH_SQL,
                     batchId, payloadReader.toJson(preferences), routeCount,
                     bbox.west(),
-                    bbox.west(), bbox.south(), bbox.east(), bbox.north());
+                    bbox.west(), bbox.south(), bbox.east(), bbox.north(), userId);
         }
     }
 
