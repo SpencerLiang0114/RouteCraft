@@ -1,6 +1,7 @@
 import { Bike, Footprints, Mountain } from "lucide-react";
 import type { ActivityType, UserPreferences } from "@/types/route";
 import { formatRouteType } from "@/lib/geoUtils";
+import { formatDistance } from "@/lib/units";
 
 const activityIcons: Record<ActivityType, typeof Footprints> = {
   running: Footprints,
@@ -15,7 +16,7 @@ const shadeNote = (value: number) =>
 export function RouteSummary({ preferences }: { preferences: UserPreferences }) {
   const Icon = activityIcons[preferences.activity];
   const target = preferences.targetDistanceKm
-    ? `${preferences.targetDistanceKm} km`
+    ? formatDistance(preferences.targetDistanceKm)
     : preferences.targetDurationMin
       ? `${preferences.targetDurationMin} min`
       : "flexible distance";

@@ -6,6 +6,7 @@ import { ExportButtons } from "./ExportButtons";
 import { formatActivity, formatSource } from "@/lib/geoUtils";
 import { useRouteStore } from "@/store/routeStore";
 import type { SavedRoute } from "@/types/route";
+import { formatDistance, formatElevation } from "@/lib/units";
 
 export function SavedRouteCard({ route }: { route: SavedRoute }) {
   const router = useRouter();
@@ -25,8 +26,8 @@ export function SavedRouteCard({ route }: { route: SavedRoute }) {
           </p>
           <h2 className="mt-2 text-2xl font-semibold text-stone-950">{route.name}</h2>
           <div className="mt-3 flex flex-wrap gap-3 text-sm text-stone-600">
-            <span>{route.distanceKm} km</span>
-            <span>{route.elevationGainM} m gain</span>
+            <span>{formatDistance(route.distanceKm)}</span>
+            <span>{formatElevation(route.elevationGainM)} gain</span>
             <span className="inline-flex items-center gap-1">
               <CalendarDays size={15} />
               Saved {savedDate}

@@ -1,6 +1,7 @@
 import { Bike, Footprints, Mountain, Star } from "lucide-react";
 import type { ActivityType, RouteCandidate } from "@/types/route";
 import { formatActivity, formatSource } from "@/lib/geoUtils";
+import { formatDistance, formatElevation } from "@/lib/units";
 
 const activityIcons: Record<ActivityType, typeof Footprints> = {
   running: Footprints,
@@ -49,21 +50,21 @@ export function RouteCard({
         {route.explanation}
       </p>
       <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-        <Metric selected={selected} label="Distance" value={`${route.distanceKm} km`} />
+        <Metric selected={selected} label="Distance" value={formatDistance(route.distanceKm)} />
         <Metric selected={selected} label="Duration" value={`${route.estimatedDurationMin} min`} />
-        <Metric selected={selected} label="Elevation gain" value={`${route.elevationGainM} m`} />
+        <Metric selected={selected} label="Elevation gain" value={formatElevation(route.elevationGainM)} />
         <Metric selected={selected} label="Difficulty" value={route.difficulty ?? "Moderate"} />
         {route.averageSlopePct != null && (
           <Metric selected={selected} label="Avg grade" value={`${route.averageSlopePct.toFixed(1)}%`} />
         )}
         {route.elevDifferenceM != null && (
-          <Metric selected={selected} label="Elev difference" value={`${route.elevDifferenceM} m`} />
+          <Metric selected={selected} label="Elev difference" value={formatElevation(route.elevDifferenceM)} />
         )}
         {route.lowestElevM != null && (
-          <Metric selected={selected} label="Lowest elev" value={`${route.lowestElevM > 0 ? "+" : ""}${route.lowestElevM} m`} />
+          <Metric selected={selected} label="Lowest elev" value={formatElevation(route.lowestElevM, { signed: true })} />
         )}
         {route.highestElevM != null && (
-          <Metric selected={selected} label="Highest elev" value={`${route.highestElevM > 0 ? "+" : ""}${route.highestElevM} m`} />
+          <Metric selected={selected} label="Highest elev" value={formatElevation(route.highestElevM, { signed: true })} />
         )}
       </div>
       <div className="mt-5 grid gap-3">

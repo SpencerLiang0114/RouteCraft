@@ -4,6 +4,7 @@ import type { LayerGroup, Map as LeafletMap } from "leaflet";
 import { formatLatLng } from "@/lib/geoUtils";
 import type { LatLng, RouteType, UserPreferences } from "@/types/route";
 import { apiUrl } from "@/lib/api-client/routing";
+import { formatDistance, formatMiles } from "@/lib/units";
 
 type RouteGoal = Extract<RouteType, "point_to_point" | "loop">;
 type TargetMode = "distance" | "time";
@@ -234,6 +235,9 @@ function PresetRow({
             }`}
           >
             {item.label}
+            {suffix === "km" && (
+              <span className="ml-1 font-normal opacity-75">({formatMiles(item.value)})</span>
+            )}
           </button>
         ))}
         <button
@@ -248,7 +252,7 @@ function PresetRow({
       </div>
       {isCustom && (
         <label className="mt-5 block text-sm font-semibold text-stone-700">
-          Custom value: {customValue} {suffix}
+          Custom value: {suffix === "km" ? formatDistance(customValue) : `${customValue} ${suffix}`}
           <input
             type="range"
             min={suffix === "km" ? 2 : 20}
