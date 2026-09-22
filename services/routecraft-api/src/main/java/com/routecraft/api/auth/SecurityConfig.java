@@ -45,7 +45,16 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.spa())
+                .csrf(csrf -> csrf
+                        .spa()
+                        // Anonymous public writes are not cookie-authenticated; CSRF would break
+                        // the wizard and CI smoke without adding session ceremony.
+                        .ignoringRequestMatchers(
+                                "/api/routing/**",
+                                "/api/osm-graph-cache/**",
+                                "/api/generated-route-batches/**",
+                                "/api/geocode/**",
+                                "/api/strava/**"))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .exceptionHandling(ex -> ex
