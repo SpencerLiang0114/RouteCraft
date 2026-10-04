@@ -7,3 +7,4 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/routecraft_migration_test
       ROUTECRAFT_ROUTING_ENGINE: rust
+      ROUTECRAFT_OSM_CACHE_WRITE_ENABLED: "true"

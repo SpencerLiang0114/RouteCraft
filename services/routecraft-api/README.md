@@ -13,7 +13,7 @@ Spring Boot public API for RouteCraft. Default listen port is **18080** (`SERVER
 | `GET` | `/api/saved-routes/{id}/export.gpx` | Download the route as GPX (see below). |
 | `POST` | `/api/generated-route-batches` | Persist a batch: body `{ "preferences": <object>, "routes": [<object>, ...] }` (`preferences` required, `routes` non-empty). Returns `{ "batchId": "<uuid>", "routeCount": <n> }`. |
 | `GET` | `/api/osm-graph-cache?bbox=` | Return a fresh cached OSM graph for the bbox. Missing/expired → `404`. Response: `{ "bbox", "elements", "expiresAt" }`. |
-| `PUT` | `/api/osm-graph-cache` | Put/refresh a cache entry: `{ "bbox", "elements", "ttlSeconds?" }` (`ttlSeconds` optional, default `600`, range 60–86400). Returns the same shape as GET. |
+| `PUT` | `/api/osm-graph-cache` | Put/refresh a cache entry: `{ "bbox", "elements", "ttlSeconds?" }` (`ttlSeconds` optional, default `600`, range 60–86400). Returns the same shape as GET. Only registered when `ROUTECRAFT_OSM_CACHE_WRITE_ENABLED=true` (otherwise `405`); only the offline smoke test enables it, because route generation trusts cached elements. |
 | `GET` | `/api/geocode/search?q=` | Address search. Success: `{ "results": [{ "label", "point", "category" }, ...], "message": null }`. Upstream failure: `502` with empty `results` and a `message`. |
 | `GET` | `/api/strava/segments` | Explore segments near a point. Query: `lat`, `lng`, `activity` (`all` \| `running` \| `riding`), `radiusKm` (0.1–20), optional `limit` (1–50, default 10). Returns `{ "source", "segments", ... }` (`source` is `strava-api` or `mock`). |
 
