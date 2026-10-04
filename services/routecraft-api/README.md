@@ -8,7 +8,7 @@ Spring Boot public API for RouteCraft. Default listen port is **18080** (`SERVER
 | --- | --- | --- |
 | `POST` | `/api/routing/generate` | Generate route candidates from `UserPreferences` JSON (`activity`, `routeType`, optional distance/duration targets, `startPoint` / `endPoint`, preference weights). Returns `{ "routes": [...] }`. Persists a generated batch when the result list is non-empty. Invalid start/end coordinates → `400`. |
 | `GET` | `/api/saved-routes` | List all saved route JSON payloads. |
-| `POST` | `/api/saved-routes` | Upsert a saved route from a JSON body; returns the stored payload. |
+| `POST` | `/api/saved-routes` | Save a copy of a route from a JSON body under a new server-assigned `saved-<uuid>` id (the body's `id` is ignored); returns the stored payload. |
 | `GET` | `/api/saved-routes/{id}` | Fetch one saved route by id. Missing → `404` (empty body). |
 | `GET` | `/api/saved-routes/{id}/export.gpx` | Download the route as GPX (see below). |
 | `POST` | `/api/generated-route-batches` | Persist a batch: body `{ "preferences": <object>, "routes": [<object>, ...] }` (`preferences` required, `routes` non-empty). Returns `{ "batchId": "<uuid>", "routeCount": <n> }`. |

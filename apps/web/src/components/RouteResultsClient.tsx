@@ -135,7 +135,7 @@ export function RouteResultsClient() {
             <ElevationChart profile={activeRoute.elevationProfile} />
           )}
           <div className="mt-4 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-            <ExportButtons route={activeRoute} />
+            <ExportButtons key={activeRoute.id} route={activeRoute} />
           </div>
         </div>
 

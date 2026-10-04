@@ -11,6 +11,21 @@ const getErrorMessage = (error: unknown, fallback: string) =>
 
 const routecraftStorageKey = "routecraft-flow";
 
+export function isSavedRoute(route: RouteCandidate): route is SavedRoute {
+  return "savedAt" in route && typeof (route as SavedRoute).savedAt === "string";
+}
+
+// Drops the library fields so a route the current user no longer owns can be saved again.
+function toCandidate(route: RouteCandidate): RouteCandidate {
+  if (!isSavedRoute(route)) {
+    return route;
+  }
+  const candidate: Partial<SavedRoute> = { ...route };
+  delete candidate.savedAt;
+  delete candidate.notes;
+  return candidate as RouteCandidate;
+}
+
 interface RouteFlowState {
   results: RouteCandidate[];
   activeRouteId: string | null;
@@ -23,6 +38,7 @@ interface RouteFlowState {
   saveRoute: (route: RouteCandidate) => Promise<SavedRoute>;
   updateRoute: (id: string, patch: { name?: string; notes?: string | null }) => Promise<SavedRoute>;
   deleteRoute: (id: string) => Promise<void>;
+  clearLibrary: () => void;
 }
 
 type PersistedRouteFlowState = Pick<RouteFlowState, "results" | "activeRouteId">;
@@ -78,20 +94,15 @@ export const useRouteStore = create<RouteFlowState>()(
       saveRoute: async (route) => {
         try {
           const savedRoute = await persistSavedRoute(route);
-          set((state) => {
-            const index = state.savedRoutes.findIndex((existing) => existing.id === savedRoute.id);
-            const nextRoutes = [...state.savedRoutes];
-            if (index >= 0) {
-              nextRoutes[index] = savedRoute;
-            } else {
-              nextRoutes.unshift(savedRoute);
-            }
-            return {
-              savedRoutes: nextRoutes,
-              savedRoutesStatus: "ready",
-              savedRoutesError: null,
-            };
-          });
+          // Every save gets a new server id, so swap the copy in for the candidate it came from;
+          // the results view then still knows the route is saved after a remount or reload.
+          set((state) => ({
+            savedRoutes: [savedRoute, ...state.savedRoutes],
+            results: state.results.map((existing) => (existing.id === route.id ? savedRoute : existing)),
+            activeRouteId: state.activeRouteId === route.id ? savedRoute.id : state.activeRouteId,
+            savedRoutesStatus: "ready",
+            savedRoutesError: null,
+          }));
           return savedRoute;
         } catch (error) {
           set({
@@ -114,10 +125,18 @@ export const useRouteStore = create<RouteFlowState>()(
         await deleteSavedRoute(id);
         set((state) => ({
           savedRoutes: state.savedRoutes.filter((route) => route.id !== id),
+          results: state.results.map((route) => (route.id === id ? toCandidate(route) : route)),
           savedRoutesStatus: "ready",
           savedRoutesError: null,
         }));
       },
+      clearLibrary: () =>
+        set((state) => ({
+          savedRoutes: [],
+          results: state.results.map(toCandidate),
+          savedRoutesStatus: "idle",
+          savedRoutesError: null,
+        })),
     }),
     {
       name: routecraftStorageKey,

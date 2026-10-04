@@ -9,12 +9,8 @@ import { routeToGpx } from "@/lib/gpxExport";
 import { routeToKml } from "@/lib/kmlExport";
 import { slugify } from "@/lib/geoUtils";
 import { useAuthStore } from "@/store/authStore";
-import { useRouteStore } from "@/store/routeStore";
+import { isSavedRoute, useRouteStore } from "@/store/routeStore";
 import type { RouteCandidate, SavedRoute } from "@/types/route";
-
-function isSavedRoute(route: RouteCandidate): route is SavedRoute {
-  return "savedAt" in route && typeof (route as SavedRoute).savedAt === "string";
-}
 
 export function ExportButtons({
   route,
@@ -26,15 +22,15 @@ export function ExportButtons({
   allowSave?: boolean;
 }) {
   const saveRoute = useRouteStore((state) => state.saveRoute);
-  const savedRoutes = useRouteStore((state) => state.savedRoutes);
   const authStatus = useAuthStore((state) => state.status);
   const [copied, setCopied] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedCopy, setSavedCopy] = useState<SavedRoute | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [shareError, setShareError] = useState(false);
-  const savedMatch = isSavedRoute(route)
-    ? route
-    : savedRoutes.find((entry) => entry.id === route.id);
+  // Generated/uploaded ids repeat across runs, so never match this route to the library by id;
+  // only a route that is itself saved, or the copy saved from this view, can be shared.
+  const savedMatch = isSavedRoute(route) ? route : savedCopy;
 
   const buttonClass = compact
     ? "inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-800 hover:border-emerald-700 hover:bg-emerald-50"
@@ -78,17 +74,20 @@ export function ExportButtons({
               setSaveError("Sign in to save");
               return;
             }
+            setSaving(true);
             try {
-              await saveRoute(route);
-              setSaved(true);
+              setSavedCopy(await saveRoute(route));
             } catch {
               setSaveError("Save failed");
+            } finally {
+              setSaving(false);
             }
           }}
-          className={buttonClass}
+          disabled={saving || savedMatch !== null}
+          className={`${buttonClass} disabled:cursor-default disabled:opacity-70`}
         >
           <Bookmark size={17} />
-          {saveError ?? (saved ? "Saved" : "Save route")}
+          {saveError ?? (savedMatch ? "Saved" : saving ? "Saving…" : "Save route")}
         </button>
       ) : null}
       <button
