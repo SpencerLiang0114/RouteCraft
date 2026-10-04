@@ -17,6 +17,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
 
 @Configuration
 @EnableWebSecurity
@@ -46,7 +48,11 @@ public class SecurityConfig {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf
-                        .spa()
+                        // The frontend reads the token from GET /api/auth/csrf, which returns the
+                        // XOR-masked value, so headers must be unmasked too. csrf.spa() compares
+                        // header values verbatim against the cookie and rejects every request.
+                        .csrfTokenRepository(new CookieCsrfTokenRepository())
+                        .csrfTokenRequestHandler(new XorCsrfTokenRequestAttributeHandler())
                         // Anonymous public writes are not cookie-authenticated; CSRF would break
                         // the wizard and CI smoke without adding session ceremony.
                         .ignoringRequestMatchers(
