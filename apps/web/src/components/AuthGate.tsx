@@ -3,14 +3,8 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { safeNextPath } from "@/lib/safeNextPath";
 import { useAuthStore } from "@/store/authStore";
-
-function sanitizeNext(pathname: string | null): string {
-  if (!pathname || !pathname.startsWith("/") || pathname.startsWith("//") || pathname.includes("..")) {
-    return "/saved";
-  }
-  return pathname;
-}
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -26,7 +20,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (status === "anonymous") {
-      router.replace(`/login?next=${encodeURIComponent(sanitizeNext(pathname))}`);
+      router.replace(`/login?next=${encodeURIComponent(safeNextPath(pathname))}`);
     }
   }, [pathname, router, status]);
 
