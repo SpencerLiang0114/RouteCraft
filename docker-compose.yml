@@ -11,7 +11,9 @@ services:
     volumes:
       - routecraft_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U routecraft -d routecraft"]
+      # TCP, not the socket: the image's init-time server listens only on the socket and would
+      # report healthy just before it shuts down, racing anything that connects next.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U routecraft -d routecraft"]
       interval: 5s
       timeout: 5s
       retries: 10

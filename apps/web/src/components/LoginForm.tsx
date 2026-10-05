@@ -4,19 +4,13 @@ import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
+import { safeNextPath } from "@/lib/safeNextPath";
 import { useAuthStore } from "@/store/authStore";
-
-function sanitizeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("..") || raw.includes("://")) {
-    return "/saved";
-  }
-  return raw;
-}
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = sanitizeNext(searchParams.get("next"));
+  const nextPath = safeNextPath(searchParams.get("next"));
   const status = useAuthStore((state) => state.status);
   const login = useAuthStore((state) => state.login);
   const loadMe = useAuthStore((state) => state.loadMe);

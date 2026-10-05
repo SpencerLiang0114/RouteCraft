@@ -58,7 +58,7 @@ class SavedRoutesController {
 
     @PostMapping
     JsonNode saveRoute(@RequestBody JsonNode route) {
-        return savedRouteRepository.upsert(AuthService.requireCurrentUserId(), route);
+        return savedRouteRepository.create(AuthService.requireCurrentUserId(), route);
     }
 
     @PatchMapping("/{id}")

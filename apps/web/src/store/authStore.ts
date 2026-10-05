@@ -8,6 +8,7 @@ import {
   register as registerRequest,
   type AuthUser,
 } from "@/lib/api-client/auth";
+import { useRouteStore } from "@/store/routeStore";
 
 type AuthStatus = "idle" | "loading" | "authenticated" | "anonymous";
 
@@ -79,6 +80,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       await logoutRequest();
     } finally {
       set({ user: null, status: "anonymous", error: null });
+      // Don't leave this account's library (or its "Saved" state) for the next sign-in in this tab.
+      useRouteStore.getState().clearLibrary();
     }
   },
 }));
