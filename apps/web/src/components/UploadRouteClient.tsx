@@ -18,8 +18,12 @@ export function UploadRouteClient() {
   const setResults = useRouteStore((state) => state.setResults);
   const router = useRouter();
 
-  useEffect(() => () => {
-    isMountedRef.current = false;
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      requestIdRef.current += 1;
+    };
   }, []);
 
   async function processFile(file: File) {

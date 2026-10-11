@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UploadRouteClient } from "../UploadRouteClient";
@@ -79,7 +79,7 @@ describe("UploadRouteClient", () => {
     const oldFile = file("old.gpx", oldText);
     const newFile = file("new.gpx", newText);
 
-    await act(async () => root.render(<UploadRouteClient />));
+    await act(async () => root.render(<StrictMode><UploadRouteClient /></StrictMode>));
     const input = container.querySelector<HTMLInputElement>("input[type=file]")!;
     await selectFile(input, oldFile);
     await selectFile(input, newFile);
@@ -102,7 +102,7 @@ describe("UploadRouteClient", () => {
     const oldText = deferred<string>();
     const newText = deferred<string>();
 
-    await act(async () => root.render(<UploadRouteClient />));
+    await act(async () => root.render(<StrictMode><UploadRouteClient /></StrictMode>));
     const input = container.querySelector<HTMLInputElement>("input[type=file]")!;
     await selectFile(input, file("old.gpx", oldText));
     await selectFile(input, file("new.gpx", newText));
@@ -118,7 +118,7 @@ describe("UploadRouteClient", () => {
   it("does not update state or navigate after unmounting during parsing", async () => {
     const pending = deferred<string>();
 
-    await act(async () => root.render(<UploadRouteClient />));
+    await act(async () => root.render(<StrictMode><UploadRouteClient /></StrictMode>));
     const input = container.querySelector<HTMLInputElement>("input[type=file]")!;
     await selectFile(input, file("route.gpx", pending));
 
