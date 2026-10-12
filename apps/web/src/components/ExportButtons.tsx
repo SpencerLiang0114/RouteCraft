@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { Bookmark, Copy, Download, ExternalLink } from "lucide-react";
 import { createShare } from "@/lib/api-client/shares";
@@ -11,6 +11,30 @@ import { slugify } from "@/lib/geoUtils";
 import { useAuthStore } from "@/store/authStore";
 import { isSavedRoute, useRouteStore } from "@/store/routeStore";
 import type { RouteCandidate, SavedRoute } from "@/types/route";
+
+type ShareAuthStatus = "authenticated" | "anonymous" | "idle" | "loading";
+
+export function getShareButtonState(hasSavedRoute: boolean, authStatus: ShareAuthStatus) {
+  if (authStatus !== "authenticated") {
+    return {
+      disabled: true,
+      label: hasSavedRoute ? "Sign in to share" : "Sign in and save to share",
+      explanation: hasSavedRoute
+        ? "Sign in before sharing a saved route."
+        : "Sign in and save this route before sharing it.",
+    };
+  }
+
+  if (!hasSavedRoute) {
+    return {
+      disabled: true,
+      label: "Save route to share",
+      explanation: "Save this route before sharing it.",
+    };
+  }
+
+  return { disabled: false, label: "Share link", explanation: null };
+}
 
 export function ExportButtons({
   route,
@@ -28,9 +52,11 @@ export function ExportButtons({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [shareError, setShareError] = useState(false);
+  const shareHelpId = useId();
   // Generated/uploaded ids repeat across runs, so never match this route to the library by id;
   // only a route that is itself saved, or the copy saved from this view, can be shared.
   const savedMatch = isSavedRoute(route) ? route : savedCopy;
+  const shareState = getShareButtonState(savedMatch !== null, authStatus);
 
   const buttonClass = compact
     ? "inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-800 hover:border-emerald-700 hover:bg-emerald-50"
@@ -92,6 +118,8 @@ export function ExportButtons({
       ) : null}
       <button
         type="button"
+        disabled={shareState.disabled}
+        aria-describedby={shareHelpId}
         onClick={async () => {
           setShareError(false);
           try {
@@ -108,11 +136,14 @@ export function ExportButtons({
             setShareError(true);
           }
         }}
-        className={buttonClass}
+        className={`${buttonClass} disabled:cursor-default disabled:opacity-70`}
       >
         <Copy size={17} />
-        {shareError ? "Share failed" : copied ? "Copied" : "Share link"}
+        {shareError ? "Share failed" : copied ? "Copied" : shareState.label}
       </button>
+      <p id={shareHelpId} className="sm:col-span-full text-sm text-stone-600">
+        {shareState.explanation}
+      </p>
       {allowSave && authStatus !== "authenticated" ? (
         <p className="sm:col-span-full text-sm text-stone-600">
           <Link href="/login" className="font-semibold text-emerald-900 underline">
