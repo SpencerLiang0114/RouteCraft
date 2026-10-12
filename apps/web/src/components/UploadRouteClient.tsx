@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileUp, Upload } from "lucide-react";
 import { parseGpxRoute } from "@/lib/gpxParser";
@@ -13,16 +13,31 @@ export function UploadRouteClient() {
   const [error, setError] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
   const setResults = useRouteStore((state) => state.setResults);
   const router = useRouter();
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      requestIdRef.current += 1;
+    };
+  }, []);
+
   async function processFile(file: File) {
+    const requestId = ++requestIdRef.current;
+    const isCurrentRequest = () => isMountedRef.current && requestId === requestIdRef.current;
+
     setFileName(file.name);
     setError(null);
     setIsParsing(true);
 
     try {
       const text = await file.text();
+      if (!isCurrentRequest()) return;
+
       const ext = file.name.split(".").pop()?.toLowerCase();
 
       let route;
@@ -37,8 +52,13 @@ export function UploadRouteClient() {
       setResults([route], route.id);
       router.push("/results");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not parse route file.");
-      setIsParsing(false);
+      if (isCurrentRequest()) {
+        setError(err instanceof Error ? err.message : "Could not parse route file.");
+      }
+    } finally {
+      if (isCurrentRequest()) {
+        setIsParsing(false);
+      }
     }
   }
 
